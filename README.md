@@ -1,6 +1,6 @@
-# Request & Email Logger with User & Recipient Tracking
+# Request & Email Logger with User & Recipient Management
 
-A Next.js-based request logging system with specialized interfaces for debugging API requests, email data, monitoring news scraping activity, and **comprehensive user/recipient management**.
+A Next.js-based request logging system with specialized interfaces for debugging API requests, email data, monitoring news scraping activity, and comprehensive **sender and recipient tracking**.
 
 ## Features
 
@@ -9,10 +9,10 @@ A Next.js-based request logging system with specialized interfaces for debugging
 - 📰 **Articles Reader**: Beautiful interface for reading scraped news content
 - 🔧 **Scraper Monitor**: Technical monitoring for tracking scraping activity
 - 🔍 **Debug Console**: General-purpose request debugging
-- 👥 **User Management**: Track requests by sender with session grouping
-- 👤 **Recipient Tracking**: Filter and organize by recipient (NEW!)
-- ⏰ **Enhanced Timestamps**: Relative and absolute time display (NEW!)
-- 💾 **In-Memory Storage**: Up to 300 requests
+- 👥 **Sender Management**: Track requests by sender with session grouping
+- 📬 **Recipient Tracking**: Filter and organize content by recipient ("for whom") - NEW!
+- ⏱️ **Enhanced Timestamps**: Relative and absolute time display - NEW!
+- 💾 **In-Memory Storage**: Simple and fast (up to 300 requests)
 - 🎨 **Clean Interface**: Modern UI with Tailwind CSS and dark mode
 - 🔄 **Backward Compatible**: All features are optional
 
@@ -30,7 +30,7 @@ npm install
 npm run dev
 ```
 
-### URLs
+Access the interfaces:
 - **[http://localhost:3000](http://localhost:3000)** - Debug Console
 - **[http://localhost:3000/articles](http://localhost:3000/articles)** - Articles Reader
 - **[http://localhost:3000/scraper](http://localhost:3000/scraper)** - Scraper Monitor
@@ -39,217 +39,249 @@ npm run dev
 
 ### POST /api/log
 
-Complete example with all fields:
+Log requests with complete sender and recipient information.
+
+#### Complete Example
 
 ```bash
 curl -X POST http://localhost:3000/api/log \\
-  -H \"Content-Type: application/json\" \\
+  -H "Content-Type: application/json" \\
   -d '{
-    \"source\": \"NYT Cooking\",
-    \"contentType\": \"newsletter\",
-    \"articleUrl\": \"https://cooking.nytimes.com/recipes/12345\",
-    \"scraperStatus\": \"success\",
-    \"scrapedAt\": \"2026-02-07T21:00:00Z\",
-    \"emailSubject\": \"5 Quick Weeknight Pasta Recipes\",
-    \"emailBody\": \"Discover delicious pasta recipes...\",
-    \"emailFrom\": \"cooking@nytimes.com\",
-    \"senderName\": \"Joonas Virtanen\",
-    \"senderId\": \"user-123\",
-    \"recipientName\": \"John Doe\",
-    \"recipientId\": \"recipient-456\",
-    \"recipientEmail\": \"john@example.com\",
-    \"sessionId\": \"wabi-session-abc\",
-    \"deviceInfo\": \"Wabi v1.0 / iOS 17.2\"
+    "source": "NYT Cooking",
+    "contentType": "newsletter",
+    "articleUrl": "https://cooking.nytimes.com/recipes/12345",
+    "scraperStatus": "success",
+    "scrapedAt": "2026-02-07T21:00:00Z",
+    "emailSubject": "5 Quick Weeknight Pasta Recipes",
+    "emailBody": "Discover delicious pasta recipes...",
+    "emailFrom": "cooking@nytimes.com",
+    "senderName": "Joonas Virtanen",
+    "senderId": "user-123",
+    "sessionId": "wabi-session-abc",
+    "deviceInfo": "Wabi v1.0/iOS 17.2",
+    "recipientName": "Alice Smith",
+    "recipientId": "recipient-456",
+    "recipientEmail": "alice@example.com"
   }'
 ```
 
 ### Field Reference
 
-#### Sender/User Fields (Optional)
-- **senderName** (string): Display name (e.g., \"Joonas Virtanen\")
-- **senderId** (string): Unique user ID (e.g., \"user-123\")
-- **sessionId** (string): Session identifier
-- **deviceInfo** (string): Device info (e.g., \"Wabi v1.0 / iOS 17.2\")
+#### Scraper Fields
+- **source** (string): News outlet name
+- **contentType** (string): newsletter | article | digest | alert
+- **articleUrl** (string): Source URL
+- **scraperStatus** (string): success | error | pending
+- **scrapedAt** (string): ISO 8601 timestamp
 
-#### Recipient Fields (Optional) - NEW!
-- **recipientName** (string): Recipient display name (e.g., \"John Doe\")
-- **recipientId** (string): Unique recipient ID (e.g., \"recipient-456\")
-- **recipientEmail** (string): Recipient email address
+#### Email Fields
+- **emailSubject** (string): Subject line
+- **emailBody** (string): Content
+- **emailFrom** (string): Sender email
+- **emailTo** (string[]): Recipients array
+- **emailType** (string): received | sent | draft
 
-#### Email Fields (Optional)
-- **emailSubject**, **emailBody**, **emailFrom**, **emailTo**, **emailType**
+#### Sender Identification (Who Sent)
+- **senderName** (string): Display name (e.g., "Joonas Virtanen")
+- **senderId** (string): Unique identifier
+- **sessionId** (string): Session grouping
+- **deviceInfo** (string): Device/app info
 
-#### Scraper Fields (Optional)
-- **source**, **scraperStatus**, **articleUrl**, **scrapedAt**, **contentType**
+#### Recipient Identification (For Whom) - NEW!
+- **recipientName** (string): Display name (e.g., "Alice Smith")
+- **recipientId** (string): Unique identifier  
+- **recipientEmail** (string): Email address
 
 ### GET /api/log - Query Parameters
 
-**User Filters:**
-- `?senderId=xxx` - Filter by sender
-- `?sessionId=xxx` - Filter by session
-- `?senderName=xxx` - Search by sender name
+**General Filters:**
+- `method` - HTTP method
+- `search` - Search all fields
+- `isEmail` - true/false
+- `isScraper` - true/false
+
+**Content Filters:**
+- `source` - News source
+- `contentType` - Content type
+- `status` - Scraper status
+- `emailType` - Email type
+
+**Sender Filters:**
+- `senderId` - Specific sender
+- `sessionId` - Specific session
+- `senderName` - Sender name (partial)
 
 **Recipient Filters (NEW!):**
-- `?recipientId=xxx` - Filter by recipient ID
-- `?recipientName=xxx` - Search by recipient name
-- `?recipientEmail=xxx` - Filter by recipient email
+- `recipientId` - Specific recipient
+- `recipientName` - Recipient name (partial)
+- `recipientEmail` - Recipient email
 
-**Other Filters:**
-- `?method=GET/POST/etc` - HTTP method
-- `?isEmail=true/false` - Email vs API
-- `?isScraper=true/false` - Scraper vs regular
-- `?source=xxx` - News source
-- `?status=success/error` - Scraper status
-- `?contentType=newsletter/article/etc` - Content type
-
-### Query Examples
-
+**Examples:**
 ```bash
-# Get all content for a specific recipient
-curl \"http://localhost:3000/api/log?recipientId=recipient-456\"
+# Get all content for Alice
+curl "http://localhost:3000/api/log?recipientId=recipient-456"
 
-# Get articles scraped by Joonas for John
-curl \"http://localhost:3000/api/log?senderId=user-123&recipientId=recipient-456\"
+# Get Alice's newsletters from Joonas
+curl "http://localhost:3000/api/log?recipientId=recipient-456&senderId=user-123&contentType=newsletter"
 
-# Get recipient's newsletters from NYT Cooking
-curl \"http://localhost:3000/api/log?recipientEmail=john@example.com&source=NYT%20Cooking\"
+# Get all content sent to alice@example.com
+curl "http://localhost:3000/api/log?recipientEmail=alice@example.com"
 ```
 
-## User Interface Features
+## UI Features
 
 ### Timestamp Display (NEW!)
 
-All request cards now show:
-- **Relative time**: \"2m ago\", \"5h ago\", \"just now\"
-- **Absolute time**: \"Feb 7, 2026 at 9:53 PM PST\"
-- **Auto-updating**: Refreshes every 10 seconds
-- **Prominent display**: Blue/highlighted for easy scanning
+All requests now show:
+- **Relative time**: "2m ago", "1h ago", "just now"
+- **Absolute time**: "Feb 7, 2026 at 9:53 PM PST"
+- **Auto-updates**: Relative times refresh every 10 seconds
+- **Prominent placement**: Top-right of all request cards
+- **Dual format**: Quick glance (relative) + precise (absolute)
 
-### Recipient Tracking (NEW!)
+### Recipient Management (NEW!)
 
-**RecipientStats Sidebar:**
-- Total recipients count
-- Recent recipients (last hour)
-- Items per recipient
-- Purple-themed avatars with initials
-- \"Recent\" indicators for activity within 1 hour
-- Click to filter content for specific recipient
+**RecipientStats Component:**
+- Sidebar showing all recipients
+- Recipient count and statistics
+- Color-coded recipient avatars (purple/pink/rose/fuchsia palette)
+- Recent activity indicators
+- Click-to-filter functionality
 
 **Recipient Display:**
-- Purple-themed avatars (distinct from user avatars)
-- \"For: [Recipient Name]\" indicators
-- Recipient email when available
-- Combined sender → recipient flow visualization
+- "For: [Recipient Name]" on all cards
+- Recipient email badges (purple)
+- Recipient avatars with initials
+- Clear sender → recipient flow visualization
 
-### User & Recipient Distinction
+**Filtering:**
+- Filter by specific recipient
+- "All Recipients" view
+- Combined sender + recipient filtering
+- Visual filter indicators
 
-**Visual Coding:**
-- **Users/Senders**: Blue/green/pink color palette
-- **Recipients**: Purple/pink/fuchsia palette
-- **Dual Avatars**: Both sender and recipient shown when available
-- **Clear Labels**: \"From: [Sender]\" vs \"For: [Recipient]\"
+### Dual Sidebar Support
 
-### Filtering Options
+All pages now support:
+- **Left Sidebar**: Sender/User stats (blue theme)
+- **Right Sidebar**: Recipient stats (purple theme)
+- Toggle buttons for both
+- Responsive grid layout (adapts to sidebar count)
+- Clear visual separation
 
-All interfaces support:
-- ✅ Filter by sender (user who scraped)
-- ✅ Filter by recipient (who it's for)
-- ✅ Combined sender + recipient filtering
-- ✅ Search across both sender and recipient names
-- ✅ \"Show/Hide Users\" and \"Show/Hide Recipients\" toggles
+### Visual Indicators
 
-## Component Reference
+**Filter Status Banner:**
+- Shows when sender or recipient filter is active
+- "From: [Sender]" + "For: [Recipient]"
+- Quick clear button
+- Color-coded badges
 
-### UserStats Component
-- Tracks senders/users
-- Blue-themed design
-- Active indicator (5-minute window)
-- Session counts
+**Avatar System:**
+- **Senders**: Blue/green/purple/pink avatars
+- **Recipients**: Purple/pink/rose/fuchsia avatars
+- **Initials**: Auto-extracted from names
+- **Border**: Recipients get white border for distinction
+- **Active dots**: Green for senders, purple for recipients
 
-### RecipientStats Component (NEW!)
-- Tracks recipients
-- Purple-themed design
-- Recent indicator (1-hour window)
-- Item counts per recipient
+## Use Cases
 
-### TimeUtils (NEW!)
-- `getRelativeTime()` - Returns \"2m ago\", \"5h ago\", etc.
-- `formatTimestamp()` - Returns full formatted date/time
-- `formatShortTimestamp()` - Returns compact format
+### Personal News Aggregation
+- Track which content is for which recipient
+- Filter by "for whom" to see personalized feeds
+- Monitor content distribution
 
-## Integration Guide for Wabi App
+### Multi-Recipient Systems
+- Track content sent to different recipients
+- Filter by recipient to see their specific content
+- Monitor recipient engagement
 
-Include these fields when logging from Wabi:
+### Email Distribution Tracking
+- See who received what content
+- Track email distribution patterns
+- Monitor per-recipient activity
 
-```typescript
-const logToServer = async (contentData: any) => {
+### Wabi App Integration
+- Track scraped content for specific users
+- Filter articles by recipient
+- Monitor user-specific content delivery
+
+## Integration Example
+
+```javascript
+// From Wabi App
+const logArticle = async (article) => {
   await fetch('http://localhost:3000/api/log', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      ...contentData, // your scraped content
+      source: article.source,
+      contentType: 'newsletter',
+      emailSubject: article.title,
+      emailBody: article.content,
+      scraperStatus: 'success',
       
-      // Sender (who's running the app)
+      // Who scraped it (sender)
       senderName: currentUser.name,
       senderId: currentUser.id,
-      sessionId: appSession.id,
-      deviceInfo: `Wabi v${version}/${platform}`,
+      sessionId: currentSession.id,
+      deviceInfo: `Wabi v${appVersion}/${platform}`,
       
-      // Recipient (who the content is for)
-      recipientName: targetRecipient.name,
-      recipientId: targetRecipient.id,
-      recipientEmail: targetRecipient.email
+      // Who it's for (recipient)
+      recipientName: targetUser.name,
+      recipientId: targetUser.id,
+      recipientEmail: targetUser.email
     })
   })
 }
 ```
 
-## Use Cases
+## UI Navigation
 
-### Personal News Aggregation
-- Scrape newsletters for specific recipients
-- Filter content by \"For whom\"
-- Track who receives which sources
-- Organize by recipient preferences
+### Sidebar Controls
 
-### Multi-User Development
-- Track which developer scraped what
-- See who content is intended for
-- Debug recipient-specific issues
-- Monitor sender → recipient flows
+**All pages include:**
+- "Show/Hide Senders" button (blue)
+- "Show/Hide Recipients" button (purple)
+- Auto-refresh toggle
+- Filter status banner
 
-### Content Distribution
-- Track content delivery per recipient
-- Monitor scraping activity by user
-- Recipient-specific content feeds
-- Distribution analytics
+**Responsive Layout:**
+- 0 sidebars: Full width (6 columns)
+- 1 sidebar: Content gets 5 columns
+- 2 sidebars: Content gets 4 columns
+- Mobile: Sidebars collapse, content full width
+
+## Timestamp Formats
+
+**Relative Time:**
+- "just now" (< 10s)
+- "30s ago" (< 1min)
+- "5m ago" (< 1hr)
+- "2h ago" (< 24hr)
+- "3d ago" (< 7days)
+- "Jan 15" (older)
+
+**Absolute Time:**
+- "Feb 7, 2026, 9:53 PM PST"
+- Includes timezone
+- 12-hour format
+- Full date for clarity
 
 ## Backward Compatibility
 
-✅ **All fields are optional**
-✅ **Works without sender or recipient data**
-✅ **Existing functionality unchanged**
-✅ **Stats panels only show when data exists**
+✅ All new fields are optional
+✅ Existing requests display normally
+✅ Sidebars only appear when data exists
+✅ Filters adapt to available data
+✅ No breaking changes
 
-## Storage & Performance
+## Tech Stack
 
-- In-memory: Up to 300 requests
-- Auto-pruning: Oldest entries removed automatically
-- Fast filtering: Client-side with optimized queries
-- Real-time updates: Configurable auto-refresh
-
-## Future Enhancements
-
-- [ ] Persistent database storage
-- [ ] Recipient preferences and profiles
-- [ ] Content recommendations per recipient
-- [ ] Email template customization by recipient
-- [ ] Recipient activity analytics
-- [ ] Multi-recipient batch operations
-- [ ] Recipient groups and teams
-- [ ] Export per-recipient data
-- [ ] Webhook notifications to recipients
-- [ ] Recipient-specific dashboards
+- Next.js 14 (App Router)
+- TypeScript
+- Tailwind CSS
+- In-memory storage (300 requests)
 
 ## License
 

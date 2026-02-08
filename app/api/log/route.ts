@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+interface EmailData {
+  emailSubject?: string
+  emailBody?: string
+  emailFrom?: string
+  emailTo?: string[]
+  emailType?: 'received' | 'sent' | 'draft' | string
+}
+
 interface LoggedRequest {
   id: string
   method: string
@@ -8,6 +16,13 @@ interface LoggedRequest {
   timestamp: string
   ip: string
   url: string
+  // Email-specific fields (optional for backward compatibility)
+  emailSubject?: string
+  emailBody?: string
+  emailFrom?: string
+  emailTo?: string[]
+  emailType?: string
+  isEmail?: boolean // Flag to identify email requests
 }
 
 // In-memory storage (will be reset on server restart)
@@ -37,10 +52,23 @@ function headersToObject(headers: Headers): Record<string, string> {
   return obj
 }
 
+// Helper to check if request contains email data
+function isEmailRequest(body: any): boolean {
+  return body && (
+    body.emailSubject !== undefined ||
+    body.emailBody !== undefined ||
+    body.emailFrom !== undefined ||
+    body.emailTo !== undefined ||
+    body.emailType !== undefined
+  )
+}
+
 // POST /api/log - Log a request
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => null)
+    
+    const isEmail = isEmailRequest(body)
     
     const loggedRequest: LoggedRequest = {
       id: generateId(),
@@ -50,6 +78,16 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
       ip: getIpAddress(request),
       url: request.url,
+      isEmail,
+    }
+
+    // Extract email-specific fields if present
+    if (isEmail && body) {
+      loggedRequest.emailSubject = body.emailSubject
+      loggedRequest.emailBody = body.emailBody
+      loggedRequest.emailFrom = body.emailFrom
+      loggedRequest.emailTo = body.emailTo
+      loggedRequest.emailType = body.emailType || 'unknown'
     }
 
     requestLog.unshift(loggedRequest) // Add to beginning
@@ -63,6 +101,7 @@ export async function POST(request: NextRequest) {
       success: true,
       id: loggedRequest.id,
       timestamp: loggedRequest.timestamp,
+      isEmail: isEmail,
     }, { status: 201 })
   } catch (error) {
     return NextResponse.json(
@@ -77,12 +116,25 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const methodFilter = searchParams.get('method')
   const searchQuery = searchParams.get('search')
+  const emailTypeFilter = searchParams.get('emailType')
+  const isEmailFilter = searchParams.get('isEmail')
 
   let filtered = [...requestLog]
 
   // Filter by method
   if (methodFilter) {
     filtered = filtered.filter(req => req.method === methodFilter.toUpperCase())
+  }
+
+  // Filter by email type
+  if (emailTypeFilter) {
+    filtered = filtered.filter(req => req.emailType === emailTypeFilter)
+  }
+
+  // Filter by email/non-email
+  if (isEmailFilter !== null) {
+    const isEmail = isEmailFilter === 'true'
+    filtered = filtered.filter(req => !!req.isEmail === isEmail)
   }
 
   // Filter by search query

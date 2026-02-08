@@ -333,10 +333,10 @@ export default function ArticlesPage() {
             <p className="text-sm text-blue-800 dark:text-blue-300">
               Send scraped news content to the API with these fields:
             </p>
-            <code className="block bg-blue-100 dark:bg-blue-900/40 p-4 rounded-lg text-xs overflow-x-auto">
-curl -X POST http://localhost:3000/api/log \{' '}
-  -H "Content-Type: application/json" \{' '}
-  -d '{' {
+            <pre className="block bg-blue-100 dark:bg-blue-900/40 p-4 rounded-lg text-xs overflow-x-auto">{
+`curl -X POST http://localhost:3000/api/log \
+  -H "Content-Type: application/json" \
+  -d '{
   "source": "NYT Cooking",
   "contentType": "newsletter",
   "articleUrl": "https://cooking.nytimes.com/...",
@@ -344,8 +344,8 @@ curl -X POST http://localhost:3000/api/log \{' '}
   "emailSubject": "5 Quick Pasta Recipes",
   "emailBody": "Your article content here...",
   "emailFrom": "cooking@nytimes.com"
-}'}
-            </code>
+}'`
+            }</pre>
             <div className="text-xs text-blue-700 dark:text-blue-400 space-y-1">
               <p><strong>Content Types:</strong> newsletter, article, digest, alert</p>
               <p><strong>Popular Sources:</strong> NYT Cooking, The Atlantic, Washington Post, The Guardian</p>

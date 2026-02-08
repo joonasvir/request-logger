@@ -448,11 +448,11 @@ export default function Home() {
             </h3>
             <div className="space-y-2 text-sm text-green-800 dark:text-green-300">
               <p><strong>Test regular API requests:</strong></p>
-              <code className="block bg-green-100 dark:bg-green-900/40 p-3 rounded mt-1 overflow-x-auto text-xs">
-curl -X POST http://localhost:3000/api/log \{' '}
-  -H "Content-Type: application/json" \{' '}
-  -d '{'{'}"test": "data", "message": "Hello"{'}'}'
-              </code>
+              <pre className="block bg-green-100 dark:bg-green-900/40 p-3 rounded mt-1 overflow-x-auto text-xs">{
+`curl -X POST http://localhost:3000/api/log \
+  -H "Content-Type: application/json" \
+  -d '{"test": "data", "message": "Hello"}'`
+              }</pre>
             </div>
           </div>
 
@@ -463,17 +463,17 @@ curl -X POST http://localhost:3000/api/log \{' '}
             </h3>
             <div className="space-y-2 text-sm text-blue-800 dark:text-blue-300">
               <p><strong>Log email data:</strong></p>
-              <code className="block bg-blue-100 dark:bg-blue-900/40 p-3 rounded mt-1 overflow-x-auto text-xs">
-curl -X POST http://localhost:3000/api/log \{' '}
-  -H "Content-Type: application/json" \{' '}
-  -d '{' {
+              <pre className="block bg-blue-100 dark:bg-blue-900/40 p-3 rounded mt-1 overflow-x-auto text-xs">{
+`curl -X POST http://localhost:3000/api/log \
+  -H "Content-Type: application/json" \
+  -d '{
     "emailSubject": "Meeting Tomorrow",
     "emailBody": "Let's meet at 2pm...",
     "emailFrom": "alice@example.com",
     "emailTo": ["bob@example.com"],
     "emailType": "sent"
-  }'}
-              </code>
+  }'`
+              }</pre>
             </div>
           </div>
         </div>

@@ -9,24 +9,24 @@ interface EmailData {
 }
 
 interface ScraperData {
-  source?: string // News outlet: NYT Cooking, The Atlantic, etc.
+  source?: string
   scraperStatus?: 'success' | 'error' | 'pending' | string
-  articleUrl?: string // Source URL
-  scrapedAt?: string // Scraping timestamp
-  contentType?: 'newsletter' | 'article' | 'digest' | 'alert' | string // Type of content
+  articleUrl?: string
+  scrapedAt?: string
+  contentType?: 'newsletter' | 'article' | 'digest' | 'alert' | string
 }
 
 interface SenderData {
-  senderName?: string // Display name of the sender
-  senderId?: string // Unique identifier for the sender
-  sessionId?: string // Session identifier
-  deviceInfo?: string // Device information (browser, OS, etc.)
+  senderName?: string
+  senderId?: string
+  sessionId?: string
+  deviceInfo?: string
 }
 
 interface RecipientData {
-  recipientName?: string // Display name of the recipient
-  recipientId?: string // Unique identifier for the recipient
-  recipientEmail?: string // Email address of the recipient
+  recipientName?: string
+  recipientId?: string
+  recipientEmail?: string
 }
 
 interface LoggedRequest {
@@ -37,20 +37,20 @@ interface LoggedRequest {
   timestamp: string
   ip: string
   url: string
-  // Email-specific fields (optional for backward compatibility)
+  // Email-specific fields
   emailSubject?: string
   emailBody?: string
   emailFrom?: string
   emailTo?: string[]
   emailType?: string
-  isEmail?: boolean // Flag to identify email requests
+  isEmail?: boolean
   // Scraper-specific fields
   source?: string
   scraperStatus?: string
   articleUrl?: string
   scrapedAt?: string
   contentType?: string
-  isScraper?: boolean // Flag to identify scraper requests
+  isScraper?: boolean
   // Sender identification fields
   senderName?: string
   senderId?: string
@@ -62,15 +62,13 @@ interface LoggedRequest {
   recipientEmail?: string
 }
 
-// In-memory storage (will be reset on server restart)
+// In-memory storage
 const requestLog: LoggedRequest[] = []
 
-// Helper to generate unique ID
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 }
 
-// Helper to get IP address
 function getIpAddress(request: NextRequest): string {
   return (
     request.headers.get('x-forwarded-for')?.split(',')[0] ||
@@ -80,7 +78,6 @@ function getIpAddress(request: NextRequest): string {
   )
 }
 
-// Helper to convert Headers to plain object
 function headersToObject(headers: Headers): Record<string, string> {
   const obj: Record<string, string> = {}
   headers.forEach((value, key) => {
@@ -89,7 +86,6 @@ function headersToObject(headers: Headers): Record<string, string> {
   return obj
 }
 
-// Helper to check if request contains email data
 function isEmailRequest(body: any): boolean {
   return body && (
     body.emailSubject !== undefined ||
@@ -100,7 +96,6 @@ function isEmailRequest(body: any): boolean {
   )
 }
 
-// Helper to check if request contains scraper data
 function isScraperRequest(body: any): boolean {
   return body && (
     body.source !== undefined ||
@@ -111,7 +106,6 @@ function isScraperRequest(body: any): boolean {
   )
 }
 
-// POST /api/log - Log a request
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => null)
@@ -131,7 +125,7 @@ export async function POST(request: NextRequest) {
       isScraper,
     }
 
-    // Extract email-specific fields if present
+    // Extract email-specific fields
     if (isEmail && body) {
       loggedRequest.emailSubject = body.emailSubject
       loggedRequest.emailBody = body.emailBody
@@ -140,7 +134,7 @@ export async function POST(request: NextRequest) {
       loggedRequest.emailType = body.emailType || 'unknown'
     }
 
-    // Extract scraper-specific fields if present
+    // Extract scraper-specific fields
     if (isScraper && body) {
       loggedRequest.source = body.source
       loggedRequest.scraperStatus = body.scraperStatus || 'success'
@@ -148,7 +142,6 @@ export async function POST(request: NextRequest) {
       loggedRequest.scrapedAt = body.scrapedAt || new Date().toISOString()
       loggedRequest.contentType = body.contentType || 'article'
       
-      // Also extract email fields if it's a scraped email
       if (isEmail) {
         loggedRequest.emailSubject = body.emailSubject
         loggedRequest.emailBody = body.emailBody
@@ -157,7 +150,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Extract sender identification fields if present
+    // Extract sender identification fields
     if (body) {
       if (body.senderName) loggedRequest.senderName = body.senderName
       if (body.senderId) loggedRequest.senderId = body.senderId
@@ -170,9 +163,8 @@ export async function POST(request: NextRequest) {
       if (body.recipientEmail) loggedRequest.recipientEmail = body.recipientEmail
     }
 
-    requestLog.unshift(loggedRequest) // Add to beginning
+    requestLog.unshift(loggedRequest)
     
-    // Keep only last 300 requests to prevent memory issues
     if (requestLog.length > 300) {
       requestLog.length = 300
     }
@@ -192,7 +184,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET /api/log - Retrieve logged requests
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const methodFilter = searchParams.get('method')
@@ -203,7 +194,6 @@ export async function GET(request: NextRequest) {
   const sourceFilter = searchParams.get('source')
   const statusFilter = searchParams.get('status')
   const contentTypeFilter = searchParams.get('contentType')
-  // Sender filters
   const senderIdFilter = searchParams.get('senderId')
   const sessionIdFilter = searchParams.get('sessionId')
   const senderNameFilter = searchParams.get('senderName')
@@ -214,54 +204,44 @@ export async function GET(request: NextRequest) {
 
   let filtered = [...requestLog]
 
-  // Filter by method
   if (methodFilter) {
     filtered = filtered.filter(req => req.method === methodFilter.toUpperCase())
   }
 
-  // Filter by email type
   if (emailTypeFilter) {
     filtered = filtered.filter(req => req.emailType === emailTypeFilter)
   }
 
-  // Filter by email/non-email
   if (isEmailFilter !== null) {
     const isEmail = isEmailFilter === 'true'
     filtered = filtered.filter(req => !!req.isEmail === isEmail)
   }
 
-  // Filter by scraper/non-scraper
   if (isScraperFilter !== null) {
     const isScraper = isScraperFilter === 'true'
     filtered = filtered.filter(req => !!req.isScraper === isScraper)
   }
 
-  // Filter by source
   if (sourceFilter) {
     filtered = filtered.filter(req => req.source === sourceFilter)
   }
 
-  // Filter by scraper status
   if (statusFilter) {
     filtered = filtered.filter(req => req.scraperStatus === statusFilter)
   }
 
-  // Filter by content type
   if (contentTypeFilter) {
     filtered = filtered.filter(req => req.contentType === contentTypeFilter)
   }
 
-  // Filter by sender ID
   if (senderIdFilter) {
     filtered = filtered.filter(req => req.senderId === senderIdFilter)
   }
 
-  // Filter by session ID
   if (sessionIdFilter) {
     filtered = filtered.filter(req => req.sessionId === sessionIdFilter)
   }
 
-  // Filter by sender name (partial match)
   if (senderNameFilter) {
     const nameLower = senderNameFilter.toLowerCase()
     filtered = filtered.filter(req => 
@@ -269,12 +249,11 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // Filter by recipient ID
+  // Recipient filters
   if (recipientIdFilter) {
     filtered = filtered.filter(req => req.recipientId === recipientIdFilter)
   }
 
-  // Filter by recipient name (partial match)
   if (recipientNameFilter) {
     const nameLower = recipientNameFilter.toLowerCase()
     filtered = filtered.filter(req => 
@@ -282,12 +261,10 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // Filter by recipient email
   if (recipientEmailFilter) {
     filtered = filtered.filter(req => req.recipientEmail === recipientEmailFilter)
   }
 
-  // Filter by search query
   if (searchQuery) {
     const query = searchQuery.toLowerCase()
     filtered = filtered.filter(req => 
@@ -301,7 +278,6 @@ export async function GET(request: NextRequest) {
   })
 }
 
-// DELETE /api/log - Clear all logged requests
 export async function DELETE() {
   const count = requestLog.length
   requestLog.length = 0
@@ -312,12 +288,10 @@ export async function DELETE() {
   })
 }
 
-// PUT /api/log - Also log PUT requests
 export async function PUT(request: NextRequest) {
   return POST(request)
 }
 
-// PATCH /api/log - Also log PATCH requests
 export async function PATCH(request: NextRequest) {
   return POST(request)
 }

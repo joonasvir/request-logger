@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Navigation from './components/Navigation'
+import UserStats from './components/UserStats'
 
 interface LoggedRequest {
   id: string
@@ -11,13 +12,17 @@ interface LoggedRequest {
   timestamp: string
   ip: string
   url: string
-  // Email-specific fields
   emailSubject?: string
   emailBody?: string
   emailFrom?: string
   emailTo?: string[]
   emailType?: string
   isEmail?: boolean
+  // User identification fields
+  senderName?: string
+  senderId?: string
+  sessionId?: string
+  deviceInfo?: string
 }
 
 export default function Home() {
@@ -27,12 +32,18 @@ export default function Home() {
   const [methodFilter, setMethodFilter] = useState('ALL')
   const [emailTypeFilter, setEmailTypeFilter] = useState('ALL')
   const [contentTypeFilter, setContentTypeFilter] = useState('ALL')
+  const [selectedUser, setSelectedUser] = useState('ALL')
   const [selectedRequest, setSelectedRequest] = useState<LoggedRequest | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(false)
+  const [showUserStats, setShowUserStats] = useState(false)
 
   const fetchRequests = async () => {
     try {
-      const res = await fetch('/api/log')
+      const params = new URLSearchParams()
+      if (selectedUser !== 'ALL') params.append('senderId', selectedUser)
+      
+      const url = `/api/log${params.toString() ? '?' + params.toString() : ''}`
+      const res = await fetch(url)
       const data = await res.json()
       setRequests(data.requests || [])
     } catch (error) {
@@ -42,14 +53,14 @@ export default function Home() {
 
   useEffect(() => {
     fetchRequests()
-  }, [])
+  }, [selectedUser])
 
   useEffect(() => {
     if (autoRefresh) {
       const interval = setInterval(fetchRequests, 2000)
       return () => clearInterval(interval)
     }
-  }, [autoRefresh])
+  }, [autoRefresh, selectedUser])
 
   useEffect(() => {
     let filtered = requests
@@ -77,10 +88,12 @@ export default function Home() {
           req.method.toLowerCase().includes(searchLower) ||
           req.url.toLowerCase().includes(searchLower) ||
           req.ip.toLowerCase().includes(searchLower) ||
-          (req.emailSubject?.toLowerCase().includes(searchLower)) ||
-          (req.emailBody?.toLowerCase().includes(searchLower)) ||
-          (req.emailFrom?.toLowerCase().includes(searchLower)) ||
-          (req.emailTo?.some(email => email.toLowerCase().includes(searchLower))) ||
+          req.senderName?.toLowerCase().includes(searchLower) ||
+          req.senderId?.toLowerCase().includes(searchLower) ||
+          req.emailSubject?.toLowerCase().includes(searchLower) ||
+          req.emailBody?.toLowerCase().includes(searchLower) ||
+          req.emailFrom?.toLowerCase().includes(searchLower) ||
+          req.emailTo?.some(email => email.toLowerCase().includes(searchLower)) ||
           JSON.stringify(req.body).toLowerCase().includes(searchLower) ||
           JSON.stringify(req.headers).toLowerCase().includes(searchLower)
         )
@@ -120,361 +133,330 @@ export default function Home() {
     }
   }
 
+  const getInitials = (name?: string) => {
+    if (!name) return '?'
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 2)
+  }
+
+  const getUserColor = (id?: string) => {
+    if (!id) return 'bg-gray-500'
+    const colors = [
+      'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500',
+      'bg-indigo-500', 'bg-red-500', 'bg-yellow-500', 'bg-teal-500',
+    ]
+    const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+    return colors[hash % colors.length]
+  }
+
   const emailTypes = [...new Set(requests.filter(r => r.emailType).map(r => r.emailType))]
   const emailCount = requests.filter(r => r.isEmail).length
   const apiCount = requests.filter(r => !r.isEmail).length
+  const hasUserData = requests.some(r => r.senderId || r.senderName)
+
+  // Group requests by session
+  const sessionGroups = useMemo(() => {
+    if (selectedUser === 'ALL') return []
+    
+    const groups = new Map<string, LoggedRequest[]>()
+    filteredRequests.forEach(req => {
+      const sessionKey = req.sessionId || 'no-session'
+      if (!groups.has(sessionKey)) {
+        groups.set(sessionKey, [])
+      }
+      groups.get(sessionKey)!.push(req)
+    })
+    
+    return Array.from(groups.entries()).map(([sessionId, reqs]) => ({
+      sessionId,
+      requests: reqs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()),
+      startTime: new Date(Math.min(...reqs.map(r => new Date(r.timestamp).getTime()))),
+      endTime: new Date(Math.max(...reqs.map(r => new Date(r.timestamp).getTime()))),
+      count: reqs.length
+    })).sort((a, b) => b.endTime.getTime() - a.endTime.getTime())
+  }, [filteredRequests, selectedUser])
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
+    <main className=\"min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6\">
+      <div className=\"max-w-7xl mx-auto\">
+        <div className=\"mb-6\">
+          <h1 className=\"text-4xl font-bold text-gray-900 dark:text-white mb-2\">
             🔍 Request & Email Logger
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className=\"text-gray-600 dark:text-gray-400\">
             Monitor and debug HTTP requests and email data in real-time
-          </p>
-        </div>
+          </p>\n        </div>
 
-        {/* Navigation */}
         <Navigation />
 
-        {/* Controls */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-            {/* Search */}
-            <input
-              type="text"
-              placeholder="Search requests..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-            />
-
-            {/* Content Type Filter */}
-            <select
-              value={contentTypeFilter}
-              onChange={(e) => setContentTypeFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-            >
-              <option value="ALL">All Types</option>
-              <option value="EMAIL">📨 Emails ({emailCount})</option>
-              <option value="API">🔌 API Requests ({apiCount})</option>
-            </select>
-
-            {/* Email Type Filter */}
-            <select
-              value={emailTypeFilter}
-              onChange={(e) => setEmailTypeFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-              disabled={contentTypeFilter !== 'EMAIL' && contentTypeFilter !== 'ALL'}
-            >
-              <option value="ALL">All Email Types</option>
-              {emailTypes.map(type => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-              <option value="received">Received</option>
-              <option value="sent">Sent</option>
-              <option value="draft">Draft</option>
-            </select>
-
-            {/* Method Filter */}
-            <select
-              value={methodFilter}
-              onChange={(e) => setMethodFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-            >
-              <option value="ALL">All Methods</option>
-              <option value="GET">GET</option>
-              <option value="POST">POST</option>
-              <option value="PUT">PUT</option>
-              <option value="DELETE">DELETE</option>
-              <option value="PATCH">PATCH</option>
-            </select>
-
-            {/* Auto Refresh */}
-            <label className="flex items-center space-x-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700">
-              <input
-                type="checkbox"
-                checked={autoRefresh}
-                onChange={(e) => setAutoRefresh(e.target.checked)}
-                className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+        <div className=\"grid grid-cols-1 lg:grid-cols-4 gap-6\">
+          <div className={`${showUserStats && hasUserData ? 'lg:col-span-1' : 'hidden lg:hidden'}`}>
+            {hasUserData && (
+              <UserStats
+                requests={requests}
+                selectedUser={selectedUser}
+                onUserSelect={setSelectedUser}
               />
-              <span className="text-gray-700 dark:text-gray-300">Auto Refresh</span>
-            </label>
+            )}
           </div>
 
-          {/* Actions */}
-          <div className="mt-4 flex space-x-2">
-            <button
-              onClick={fetchRequests}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Refresh
-            </button>
-            <button
-              onClick={clearRequests}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-            >
-              Clear All
-            </button>
-          </div>
-
-          {/* Stats */}
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between text-sm flex-wrap gap-2">
-              <span className="text-gray-600 dark:text-gray-400">
-                Total: <strong className="text-gray-900 dark:text-white">{requests.length}</strong>
-              </span>
-              <span className="text-gray-600 dark:text-gray-400">
-                Emails: <strong className="text-blue-600 dark:text-blue-400">{emailCount}</strong>
-              </span>
-              <span className="text-gray-600 dark:text-gray-400">
-                API: <strong className="text-green-600 dark:text-green-400">{apiCount}</strong>
-              </span>
-              <span className="text-gray-600 dark:text-gray-400">
-                Filtered: <strong className="text-gray-900 dark:text-white">{filteredRequests.length}</strong>
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Requests List */}
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
-              Requests ({filteredRequests.length})
-            </h2>
-            <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-              {filteredRequests.length === 0 ? (
-                <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg">
-                  <p className="text-gray-500 dark:text-gray-400">No requests logged yet</p>
-                  <p className="text-sm text-gray-400 dark:text-gray-500 mt-2">
-                    Send a request to <code className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded">/api/log</code>
-                  </p>
-                </div>
-              ) : (
-                filteredRequests.map((req) => (
-                  <div
-                    key={req.id}
-                    onClick={() => setSelectedRequest(req)}
-                    className={`request-card cursor-pointer ${
-                      selectedRequest?.id === req.id ? 'ring-2 ring-blue-500' : ''
-                    }`}
+          <div className={`${showUserStats && hasUserData ? 'lg:col-span-3' : 'lg:col-span-4'}`}>
+            <div className=\"bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6\">
+              <div className=\"flex items-center justify-between mb-4\">
+                <h3 className=\"text-lg font-semibold text-gray-900 dark:text-white\">Filters</h3>
+                {hasUserData && (
+                  <button
+                    onClick={() => setShowUserStats(!showUserStats)}
+                    className=\"px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50\"
                   >
-                    {req.isEmail ? (
-                      // Email Display
-                      <>
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex gap-2">
-                            <span className="badge badge-post">📨 EMAIL</span>
-                            {req.emailType && (
-                              <span className={`badge ${getEmailTypeBadgeClass(req.emailType)}`}>
-                                {req.emailType.toUpperCase()}
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {new Date(req.timestamp).toLocaleString()}
+                    {showUserStats ? 'Hide' : 'Show'} User Stats
+                  </button>
+                )}
+              </div>
+
+              <div className=\"grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4\">
+                <input
+                  type=\"text\"
+                  placeholder=\"Search requests...\"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className=\"px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white\"
+                />
+
+                <select
+                  value={contentTypeFilter}
+                  onChange={(e) => setContentTypeFilter(e.target.value)}
+                  className=\"px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white\"
+                >
+                  <option value=\"ALL\">All Types</option>
+                  <option value=\"EMAIL\">📨 Emails ({emailCount})</option>
+                  <option value=\"API\">🔌 API ({apiCount})</option>
+                </select>
+
+                <select
+                  value={emailTypeFilter}
+                  onChange={(e) => setEmailTypeFilter(e.target.value)}
+                  className=\"px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white\"
+                  disabled={contentTypeFilter !== 'EMAIL' && contentTypeFilter !== 'ALL'}
+                >
+                  <option value=\"ALL\">All Email Types</option>
+                  {emailTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={methodFilter}
+                  onChange={(e) => setMethodFilter(e.target.value)}
+                  className=\"px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white\"
+                >
+                  <option value=\"ALL\">All Methods</option>
+                  <option value=\"GET\">GET</option>
+                  <option value=\"POST\">POST</option>
+                  <option value=\"PUT\">PUT</option>
+                  <option value=\"DELETE\">DELETE</option>
+                  <option value=\"PATCH\">PATCH</option>
+                </select>
+
+                <label className=\"flex items-center space-x-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700\">
+                  <input
+                    type=\"checkbox\"
+                    checked={autoRefresh}
+                    onChange={(e) => setAutoRefresh(e.target.checked)}
+                    className=\"w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500\"
+                  />
+                  <span className=\"text-gray-700 dark:text-gray-300\">Auto</span>
+                </label>
+              </div>
+
+              <div className=\"mt-4 flex space-x-2\">
+                <button
+                  onClick={fetchRequests}
+                  className=\"px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors\"
+                >
+                  Refresh
+                </button>
+                <button
+                  onClick={clearRequests}
+                  className=\"px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors\"
+                >
+                  Clear All
+                </button>
+              </div>
+
+              <div className=\"mt-4 pt-4 border-t border-gray-200 dark:border-gray-700\">
+                <div className=\"flex items-center justify-between text-sm flex-wrap gap-2\">
+                  <span className=\"text-gray-600 dark:text-gray-400\">
+                    Total: <strong className=\"text-gray-900 dark:text-white\">{requests.length}</strong>
+                  </span>
+                  <span className=\"text-gray-600 dark:text-gray-400\">
+                    Filtered: <strong className=\"text-gray-900 dark:text-white\">{filteredRequests.length}</strong>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {selectedUser !== 'ALL' && sessionGroups.length > 0 ? (
+              <div className=\"space-y-4\">
+                <h2 className=\"text-2xl font-semibold text-gray-900 dark:text-white\">
+                  Sessions ({sessionGroups.length})
+                </h2>
+                {sessionGroups.map(group => (
+                  <details key={group.sessionId} className=\"bg-white dark:bg-gray-800 rounded-lg shadow-md\" open={sessionGroups.length === 1}>
+                    <summary className=\"p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg\">
+                      <div className=\"flex items-center justify-between\">
+                        <div>
+                          <span className=\"font-semibold text-gray-900 dark:text-white\">
+                            Session: {group.sessionId === 'no-session' ? 'No Session ID' : group.sessionId.substring(0, 8)}...
                           </span>
+                          <p className=\"text-sm text-gray-600 dark:text-gray-400\">
+                            {group.count} requests • {group.startTime.toLocaleString()}
+                          </p>
                         </div>
-                        <div className="space-y-1 text-sm">
-                          <div className="font-bold text-gray-900 dark:text-white">
-                            {req.emailSubject || 'No Subject'}
+                        <span className=\"text-2xl\">▼</span>
+                      </div>
+                    </summary>
+                    <div className=\"p-4 space-y-2 border-t border-gray-200 dark:border-gray-700\">
+                      {group.requests.map(req => (
+                        <div
+                          key={req.id}
+                          onClick={() => setSelectedRequest(req)}
+                          className={`request-card cursor-pointer ${selectedRequest?.id === req.id ? 'ring-2 ring-blue-500' : ''}`}
+                        >
+                          <div className=\"flex items-start justify-between mb-2\">
+                            <div className=\"flex items-center gap-2\">
+                              {req.senderId && (
+                                <div className={`w-8 h-8 rounded-full ${getUserColor(req.senderId)} flex items-center justify-center text-white text-xs font-semibold`}>
+                                  {getInitials(req.senderName)}
+                                </div>
+                              )}
+                              <span className={getMethodBadgeClass(req.method)}>{req.method}</span>
+                            </div>
+                            <span className=\"text-xs text-gray-500 dark:text-gray-400\">
+                              {new Date(req.timestamp).toLocaleTimeString()}
+                            </span>
                           </div>
-                          <div className="text-gray-600 dark:text-gray-400">
-                            <strong>From:</strong> {req.emailFrom || 'Unknown'}
+                          <div className=\"text-sm text-gray-700 dark:text-gray-300 truncate\">
+                            {req.url}
                           </div>
-                          <div className="text-gray-600 dark:text-gray-400">
-                            <strong>To:</strong> {req.emailTo?.join(', ') || 'Unknown'}
-                          </div>
-                          {req.emailBody && (
-                            <div className="text-gray-500 dark:text-gray-500 text-xs mt-2 truncate">
-                              {req.emailBody.substring(0, 100)}{req.emailBody.length > 100 ? '...' : ''}
+                          {req.deviceInfo && (
+                            <div className=\"text-xs text-gray-500 dark:text-gray-500 mt-1\">
+                              {req.deviceInfo}
                             </div>
                           )}
                         </div>
-                      </>
+                      ))}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            ) : (
+              <div className=\"grid grid-cols-1 lg:grid-cols-2 gap-6\">
+                <div>
+                  <h2 className=\"text-2xl font-semibold text-gray-900 dark:text-white mb-4\">
+                    Requests ({filteredRequests.length})
+                  </h2>
+                  <div className=\"space-y-3 max-h-[600px] overflow-y-auto pr-2\">
+                    {filteredRequests.length === 0 ? (
+                      <div className=\"text-center py-12 bg-white dark:bg-gray-800 rounded-lg\">
+                        <p className=\"text-gray-500 dark:text-gray-400\">No requests logged yet</p>
+                      </div>
                     ) : (
-                      // API Request Display
-                      <>
-                        <div className="flex items-start justify-between mb-2">
-                          <span className={getMethodBadgeClass(req.method)}>{req.method}</span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {new Date(req.timestamp).toLocaleString()}
-                          </span>
+                      filteredRequests.map((req) => (
+                        <div
+                          key={req.id}
+                          onClick={() => setSelectedRequest(req)}
+                          className={`request-card cursor-pointer ${selectedRequest?.id === req.id ? 'ring-2 ring-blue-500' : ''}`}
+                        >
+                          <div className=\"flex items-start justify-between mb-2\">
+                            <div className=\"flex items-center gap-2\">
+                              {req.senderId && (
+                                <div className={`w-8 h-8 rounded-full ${getUserColor(req.senderId)} flex items-center justify-center text-white text-xs font-semibold`}>
+                                  {getInitials(req.senderName)}
+                                </div>
+                              )}
+                              <span className={getMethodBadgeClass(req.method)}>{req.method}</span>
+                            </div>
+                            <span className=\"text-xs text-gray-500 dark:text-gray-400\">
+                              {new Date(req.timestamp).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className=\"text-sm text-gray-700 dark:text-gray-300 mb-1 truncate\">
+                            <strong>URL:</strong> {req.url}
+                          </div>
+                          {req.senderName && (
+                            <div className=\"text-xs text-gray-600 dark:text-gray-400\">
+                              <strong>From:</strong> {req.senderName}
+                            </div>
+                          )}
                         </div>
-                        <div className="text-sm text-gray-700 dark:text-gray-300 mb-1">
-                          <strong>URL:</strong> {req.url}
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          <strong>IP:</strong> {req.ip}
-                        </div>
-                      </>
+                      ))
                     )}
                   </div>
-                ))
-              )}
-            </div>
-          </div>
+                </div>
 
-          {/* Request Details */}
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">
-              Details
-            </h2>
-            {selectedRequest ? (
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-                <div className="space-y-4">
-                  {selectedRequest.isEmail ? (
-                    // Email Details View
-                    <>
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                          📨 Email Message
-                          {selectedRequest.emailType && (
-                            <span className={`badge text-xs ${getEmailTypeBadgeClass(selectedRequest.emailType)}`}>
-                              {selectedRequest.emailType.toUpperCase()}
-                            </span>
-                          )}
-                        </h3>
-                        <div className="space-y-3">
-                          <div className="pb-3 border-b border-gray-200 dark:border-gray-700">
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Subject</div>
-                            <div className="text-lg font-semibold text-gray-900 dark:text-white">
-                              {selectedRequest.emailSubject || 'No Subject'}
+                <div>
+                  <h2 className=\"text-2xl font-semibold text-gray-900 dark:text-white mb-4\">Details</h2>
+                  {selectedRequest ? (
+                    <div className=\"bg-white dark:bg-gray-800 rounded-lg shadow-md p-6\">
+                      <div className=\"space-y-4\">
+                        {selectedRequest.senderId && (
+                          <div className=\"pb-4 border-b border-gray-200 dark:border-gray-700\">
+                            <div className=\"flex items-center gap-3\">
+                              <div className={`w-12 h-12 rounded-full ${getUserColor(selectedRequest.senderId)} flex items-center justify-center text-white text-lg font-semibold`}>
+                                {getInitials(selectedRequest.senderName)}
+                              </div>
+                              <div>
+                                <p className=\"font-semibold text-gray-900 dark:text-white\">
+                                  {selectedRequest.senderName || 'Anonymous User'}
+                                </p>
+                                <p className=\"text-xs text-gray-600 dark:text-gray-400\">
+                                  ID: {selectedRequest.senderId.substring(0, 12)}...
+                                </p>
+                                {selectedRequest.deviceInfo && (
+                                  <p className=\"text-xs text-gray-500 dark:text-gray-500\">
+                                    {selectedRequest.deviceInfo}
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           </div>
-                          
-                          <div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">From</div>
-                            <div className="text-sm text-gray-900 dark:text-white font-mono">
-                              {selectedRequest.emailFrom || 'Unknown'}
-                            </div>
-                          </div>
-                          
-                          <div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">To</div>
-                            <div className="text-sm text-gray-900 dark:text-white">
-                              {selectedRequest.emailTo?.map((email, i) => (
-                                <div key={i} className="font-mono">{email}</div>
-                              )) || 'Unknown'}
-                            </div>
-                          </div>
+                        )}
 
-                          <div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Timestamp</div>
-                            <div className="text-sm text-gray-900 dark:text-white">
-                              {new Date(selectedRequest.timestamp).toLocaleString()}
-                            </div>
-                          </div>
-                          
-                          <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-                            <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Message Body</div>
-                            <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded text-sm text-gray-900 dark:text-white whitespace-pre-wrap max-h-64 overflow-y-auto">
-                              {selectedRequest.emailBody || 'No body content'}
-                            </div>
+                        <div>
+                          <h3 className=\"text-lg font-semibold text-gray-900 dark:text-white mb-2\">Request Info</h3>
+                          <div className=\"space-y-2 text-sm\">
+                            <div><strong>ID:</strong> {selectedRequest.id}</div>
+                            <div><strong>Method:</strong> <span className={getMethodBadgeClass(selectedRequest.method)}>{selectedRequest.method}</span></div>
+                            <div><strong>URL:</strong> {selectedRequest.url}</div>
+                            <div><strong>IP:</strong> {selectedRequest.ip}</div>
+                            <div><strong>Timestamp:</strong> {new Date(selectedRequest.timestamp).toLocaleString()}</div>
+                            {selectedRequest.sessionId && (
+                              <div><strong>Session:</strong> {selectedRequest.sessionId.substring(0, 16)}...</div>
+                            )}
                           </div>
                         </div>
-                      </div>
 
-                      <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Technical Details</h3>
-                        <div className="space-y-2 text-xs">
-                          <div><strong>Request ID:</strong> {selectedRequest.id}</div>
-                          <div><strong>Method:</strong> {selectedRequest.method}</div>
-                          <div><strong>IP:</strong> {selectedRequest.ip}</div>
+                        <div className=\"pt-4 border-t border-gray-200 dark:border-gray-700\">
+                          <h3 className=\"text-lg font-semibold text-gray-900 dark:text-white mb-2\">Body</h3>
+                          <pre className=\"bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto\">
+                            {JSON.stringify(selectedRequest.body, null, 2)}
+                          </pre>
                         </div>
                       </div>
-                    </>
+                    </div>
                   ) : (
-                    // API Request Details View
-                    <>
-                      <div>
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Request Info</h3>
-                        <div className="space-y-2 text-sm">
-                          <div><strong>ID:</strong> {selectedRequest.id}</div>
-                          <div><strong>Method:</strong> <span className={getMethodBadgeClass(selectedRequest.method)}>{selectedRequest.method}</span></div>
-                          <div><strong>URL:</strong> {selectedRequest.url}</div>
-                          <div><strong>IP:</strong> {selectedRequest.ip}</div>
-                          <div><strong>Timestamp:</strong> {new Date(selectedRequest.timestamp).toLocaleString()}</div>
-                        </div>
-                      </div>
-
-                      <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Headers</h3>
-                        <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto">
-                          {JSON.stringify(selectedRequest.headers, null, 2)}
-                        </pre>
-                      </div>
-
-                      <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Body</h3>
-                        <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto">
-                          {JSON.stringify(selectedRequest.body, null, 2)}
-                        </pre>
-                      </div>
-                    </>
-                  )}
-
-                  {selectedRequest.isEmail && selectedRequest.body && (
-                    <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <details className="cursor-pointer">
-                        <summary className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Raw Request Body</summary>
-                        <pre className="bg-gray-100 dark:bg-gray-900 p-3 rounded text-xs overflow-x-auto mt-2">
-                          {JSON.stringify(selectedRequest.body, null, 2)}
-                        </pre>
-                      </details>
+                    <div className=\"bg-white dark:bg-gray-800 rounded-lg shadow-md p-12 text-center\">
+                      <p className=\"text-gray-500 dark:text-gray-400\">Select a request to view details</p>
                     </div>
                   )}
                 </div>
               </div>
-            ) : (
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-12 text-center">
-                <p className="text-gray-500 dark:text-gray-400">Select a request to view details</p>
-              </div>
             )}
-          </div>
-        </div>
-
-        {/* Usage Instructions */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* API Usage */}
-          <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-green-900 dark:text-green-200 mb-2">
-              🔌 API Request Example
-            </h3>
-            <div className="space-y-2 text-sm text-green-800 dark:text-green-300">
-              <p><strong>Test regular API requests:</strong></p>
-              <pre className="block bg-green-100 dark:bg-green-900/40 p-3 rounded mt-1 overflow-x-auto text-xs">{
-`curl -X POST http://localhost:3000/api/log \
-  -H "Content-Type: application/json" \
-  -d '{"test": "data", "message": "Hello"}'`
-              }</pre>
-            </div>
-          </div>
-
-          {/* Email Usage */}
-          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-6">
-            <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-200 mb-2">
-              📨 Email Data Example
-            </h3>
-            <div className="space-y-2 text-sm text-blue-800 dark:text-blue-300">
-              <p><strong>Log email data:</strong></p>
-              <pre className="block bg-blue-100 dark:bg-blue-900/40 p-3 rounded mt-1 overflow-x-auto text-xs">{
-`curl -X POST http://localhost:3000/api/log \
-  -H "Content-Type: application/json" \
-  -d '{
-    "emailSubject": "Meeting Tomorrow",
-    "emailBody": "Let's meet at 2pm...",
-    "emailFrom": "alice@example.com",
-    "emailTo": ["bob@example.com"],
-    "emailType": "sent"
-  }'`
-              }</pre>
-            </div>
           </div>
         </div>
       </div>

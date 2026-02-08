@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Navigation from './components/Navigation'
 
 interface LoggedRequest {
   id: string
@@ -127,14 +128,17 @@ export default function Home() {
     <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            📨 Request & Email Logger
+            🔍 Request & Email Logger
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
             Monitor and debug HTTP requests and email data in real-time
           </p>
         </div>
+
+        {/* Navigation */}
+        <Navigation />
 
         {/* Controls */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">

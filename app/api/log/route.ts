@@ -8,6 +8,13 @@ interface EmailData {
   emailType?: 'received' | 'sent' | 'draft' | string
 }
 
+interface ScraperData {
+  source?: string // News outlet: NYT Cooking, The Atlantic, etc.
+  scraperStatus?: 'success' | 'error' | 'pending' | string
+  articleUrl?: string // Source URL
+  scrapedAt?: string // Scraping timestamp
+}
+
 interface LoggedRequest {
   id: string
   method: string
@@ -23,6 +30,12 @@ interface LoggedRequest {
   emailTo?: string[]
   emailType?: string
   isEmail?: boolean // Flag to identify email requests
+  // Scraper-specific fields
+  source?: string
+  scraperStatus?: string
+  articleUrl?: string
+  scrapedAt?: string
+  isScraper?: boolean // Flag to identify scraper requests
 }
 
 // In-memory storage (will be reset on server restart)
@@ -63,12 +76,23 @@ function isEmailRequest(body: any): boolean {
   )
 }
 
+// Helper to check if request contains scraper data
+function isScraperRequest(body: any): boolean {
+  return body && (
+    body.source !== undefined ||
+    body.scraperStatus !== undefined ||
+    body.articleUrl !== undefined ||
+    body.scrapedAt !== undefined
+  )
+}
+
 // POST /api/log - Log a request
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => null)
     
     const isEmail = isEmailRequest(body)
+    const isScraper = isScraperRequest(body)
     
     const loggedRequest: LoggedRequest = {
       id: generateId(),
@@ -79,6 +103,7 @@ export async function POST(request: NextRequest) {
       ip: getIpAddress(request),
       url: request.url,
       isEmail,
+      isScraper,
     }
 
     // Extract email-specific fields if present
@@ -90,11 +115,27 @@ export async function POST(request: NextRequest) {
       loggedRequest.emailType = body.emailType || 'unknown'
     }
 
+    // Extract scraper-specific fields if present
+    if (isScraper && body) {
+      loggedRequest.source = body.source
+      loggedRequest.scraperStatus = body.scraperStatus || 'success'
+      loggedRequest.articleUrl = body.articleUrl
+      loggedRequest.scrapedAt = body.scrapedAt || new Date().toISOString()
+      
+      // Also extract email fields if it's a scraped email
+      if (isEmail) {
+        loggedRequest.emailSubject = body.emailSubject
+        loggedRequest.emailBody = body.emailBody
+        loggedRequest.emailFrom = body.emailFrom
+        loggedRequest.emailTo = body.emailTo
+      }
+    }
+
     requestLog.unshift(loggedRequest) // Add to beginning
     
-    // Keep only last 100 requests to prevent memory issues
-    if (requestLog.length > 100) {
-      requestLog.length = 100
+    // Keep only last 200 requests to prevent memory issues (increased for scraper data)
+    if (requestLog.length > 200) {
+      requestLog.length = 200
     }
 
     return NextResponse.json({
@@ -102,6 +143,7 @@ export async function POST(request: NextRequest) {
       id: loggedRequest.id,
       timestamp: loggedRequest.timestamp,
       isEmail: isEmail,
+      isScraper: isScraper,
     }, { status: 201 })
   } catch (error) {
     return NextResponse.json(
@@ -118,6 +160,9 @@ export async function GET(request: NextRequest) {
   const searchQuery = searchParams.get('search')
   const emailTypeFilter = searchParams.get('emailType')
   const isEmailFilter = searchParams.get('isEmail')
+  const isScraperFilter = searchParams.get('isScraper')
+  const sourceFilter = searchParams.get('source')
+  const statusFilter = searchParams.get('status')
 
   let filtered = [...requestLog]
 
@@ -135,6 +180,22 @@ export async function GET(request: NextRequest) {
   if (isEmailFilter !== null) {
     const isEmail = isEmailFilter === 'true'
     filtered = filtered.filter(req => !!req.isEmail === isEmail)
+  }
+
+  // Filter by scraper/non-scraper
+  if (isScraperFilter !== null) {
+    const isScraper = isScraperFilter === 'true'
+    filtered = filtered.filter(req => !!req.isScraper === isScraper)
+  }
+
+  // Filter by source
+  if (sourceFilter) {
+    filtered = filtered.filter(req => req.source === sourceFilter)
+  }
+
+  // Filter by scraper status
+  if (statusFilter) {
+    filtered = filtered.filter(req => req.scraperStatus === statusFilter)
   }
 
   // Filter by search query

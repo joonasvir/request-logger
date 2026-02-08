@@ -462,10 +462,10 @@ export default function ScraperMonitor() {
           <div className="space-y-3">
             <div>
               <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-300 mb-2">Example: Log scraped news email</p>
-              <code className="block bg-indigo-100 dark:bg-indigo-900/40 p-3 rounded text-xs overflow-x-auto">
-curl -X POST http://localhost:3000/api/log \{' '}
-  -H "Content-Type: application/json" \{' '}
-  -d '{' {
+              <pre className="block bg-indigo-100 dark:bg-indigo-900/40 p-3 rounded text-xs overflow-x-auto">{
+`curl -X POST http://localhost:3000/api/log \\
+  -H "Content-Type: application/json" \\
+  -d '{
   "source": "NYT Cooking",
   "scraperStatus": "success",
   "articleUrl": "https://cooking.nytimes.com/recipes/12345",
@@ -473,16 +473,16 @@ curl -X POST http://localhost:3000/api/log \{' '}
   "emailSubject": "5 Weeknight Pasta Recipes",
   "emailBody": "Discover quick and delicious pasta recipes...",
   "emailFrom": "cooking@nytimes.com"
-}'}
-              </code>
+}'`
+              }</pre>
             </div>
             <div>
               <p className="text-sm font-semibold text-indigo-800 dark:text-indigo-300 mb-2">Example: Log app ping</p>
-              <code className="block bg-indigo-100 dark:bg-indigo-900/40 p-3 rounded text-xs overflow-x-auto">
-curl -X POST http://localhost:3000/api/log \{' '}
-  -H "Content-Type: application/json" \{' '}
-  -d '{' {"source": "App Health Check", "scraperStatus": "success"}'}
-              </code>
+              <pre className="block bg-indigo-100 dark:bg-indigo-900/40 p-3 rounded text-xs overflow-x-auto">{
+`curl -X POST http://localhost:3000/api/log \\
+  -H "Content-Type: application/json" \\
+  -d '{"source": "App Health Check", "scraperStatus": "success"}'`
+              }</pre>
             </div>
             <div className="pt-3 border-t border-indigo-200 dark:border-indigo-800">
               <p className="text-sm text-indigo-800 dark:text-indigo-300">

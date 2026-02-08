@@ -16,6 +16,13 @@ interface ScraperData {
   contentType?: 'newsletter' | 'article' | 'digest' | 'alert' | string // Type of content
 }
 
+interface SenderData {
+  senderName?: string // Display name of the sender
+  senderId?: string // Unique identifier for the sender
+  sessionId?: string // Session identifier
+  deviceInfo?: string // Device information (browser, OS, etc.)
+}
+
 interface LoggedRequest {
   id: string
   method: string
@@ -38,6 +45,11 @@ interface LoggedRequest {
   scrapedAt?: string
   contentType?: string
   isScraper?: boolean // Flag to identify scraper requests
+  // Sender identification fields
+  senderName?: string
+  senderId?: string
+  sessionId?: string
+  deviceInfo?: string
 }
 
 // In-memory storage (will be reset on server restart)
@@ -135,11 +147,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Extract sender identification fields if present
+    if (body) {
+      if (body.senderName) loggedRequest.senderName = body.senderName
+      if (body.senderId) loggedRequest.senderId = body.senderId
+      if (body.sessionId) loggedRequest.sessionId = body.sessionId
+      if (body.deviceInfo) loggedRequest.deviceInfo = body.deviceInfo
+    }
+
     requestLog.unshift(loggedRequest) // Add to beginning
     
-    // Keep only last 200 requests to prevent memory issues (increased for scraper data)
-    if (requestLog.length > 200) {
-      requestLog.length = 200
+    // Keep only last 300 requests to prevent memory issues (increased for sender data)
+    if (requestLog.length > 300) {
+      requestLog.length = 300
     }
 
     return NextResponse.json({
@@ -168,6 +188,10 @@ export async function GET(request: NextRequest) {
   const sourceFilter = searchParams.get('source')
   const statusFilter = searchParams.get('status')
   const contentTypeFilter = searchParams.get('contentType')
+  // New sender filters
+  const senderIdFilter = searchParams.get('senderId')
+  const sessionIdFilter = searchParams.get('sessionId')
+  const senderNameFilter = searchParams.get('senderName')
 
   let filtered = [...requestLog]
 
@@ -206,6 +230,24 @@ export async function GET(request: NextRequest) {
   // Filter by content type
   if (contentTypeFilter) {
     filtered = filtered.filter(req => req.contentType === contentTypeFilter)
+  }
+
+  // Filter by sender ID
+  if (senderIdFilter) {
+    filtered = filtered.filter(req => req.senderId === senderIdFilter)
+  }
+
+  // Filter by session ID
+  if (sessionIdFilter) {
+    filtered = filtered.filter(req => req.sessionId === sessionIdFilter)
+  }
+
+  // Filter by sender name (partial match)
+  if (senderNameFilter) {
+    const nameLower = senderNameFilter.toLowerCase()
+    filtered = filtered.filter(req => 
+      req.senderName?.toLowerCase().includes(nameLower)
+    )
   }
 
   // Filter by search query

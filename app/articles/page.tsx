@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Navigation from '../components/Navigation'
 import UserStats from '../components/UserStats'
+import { getRelativeTime, formatTimestamp } from '../utils/timeUtils'
 
 interface Article {
   id: string
@@ -12,6 +13,7 @@ interface Article {
   emailSubject?: string
   emailBody?: string
   emailFrom?: string
+  emailTo?: string[]
   articleUrl?: string
   contentType?: string
   scraperStatus?: string
@@ -27,10 +29,17 @@ export default function ArticlesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sourceFilter, setSourceFilter] = useState('ALL')
   const [contentTypeFilter, setContentTypeFilter] = useState('ALL')
+  const [recipientFilter, setRecipientFilter] = useState('ALL')
   const [selectedUser, setSelectedUser] = useState('ALL')
   const [expandedArticles, setExpandedArticles] = useState<Set<string>>(new Set())
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [showUserStats, setShowUserStats] = useState(false)
+  const [currentTime, setCurrentTime] = useState(Date.now())
+
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(Date.now()), 10000)
+    return () => clearInterval(interval)
+  }, [])
 
   const fetchArticles = async () => {
     try {
@@ -58,6 +67,14 @@ export default function ArticlesPage() {
     }
   }, [autoRefresh, selectedUser])
 
+  const allRecipients = useMemo(() => {
+    const recipients = new Set<string>()
+    articles.forEach(article => {
+      article.emailTo?.forEach(email => recipients.add(email))
+    })
+    return Array.from(recipients).sort()
+  }, [articles])
+
   useEffect(() => {
     let filtered = articles
 
@@ -69,6 +86,10 @@ export default function ArticlesPage() {
       filtered = filtered.filter(article => article.contentType === contentTypeFilter)
     }
 
+    if (recipientFilter !== 'ALL') {
+      filtered = filtered.filter(article => article.emailTo?.includes(recipientFilter))
+    }
+
     if (searchTerm) {
       filtered = filtered.filter(article => {
         const searchLower = searchTerm.toLowerCase()
@@ -76,13 +97,14 @@ export default function ArticlesPage() {
           article.source?.toLowerCase().includes(searchLower) ||
           article.emailSubject?.toLowerCase().includes(searchLower) ||
           article.emailBody?.toLowerCase().includes(searchLower) ||
-          article.senderName?.toLowerCase().includes(searchLower)
+          article.senderName?.toLowerCase().includes(searchLower) ||
+          article.emailTo?.some(email => email.toLowerCase().includes(searchLower))
         )
       })
     }
 
     setFilteredArticles(filtered)
-  }, [articles, searchTerm, sourceFilter, contentTypeFilter])
+  }, [articles, searchTerm, sourceFilter, contentTypeFilter, recipientFilter])
 
   const toggleArticle = (id: string) => {
     const newExpanded = new Set(expandedArticles)
@@ -96,7 +118,6 @@ export default function ArticlesPage() {
 
   const getSourceBadge = (source?: string) => {
     if (!source) return { color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200', icon: '📰' }
-    
     const lower = source.toLowerCase()
     if (lower.includes('nyt') || lower.includes('times')) {
       return { color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200', icon: '🗓️' }
@@ -141,6 +162,7 @@ export default function ArticlesPage() {
   const sources = [...new Set(articles.filter(a => a.source).map(a => a.source))]
   const contentTypes = [...new Set(articles.filter(a => a.contentType).map(a => a.contentType))]
   const hasUserData = articles.some(a => a.senderId || a.senderName)
+  const recipientCount = allRecipients.length
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-slate-900 dark:to-indigo-950 p-6">
@@ -175,6 +197,8 @@ export default function ArticlesPage() {
                     <span>Showing articles from: <strong className="text-gray-900 dark:text-white">
                       {articles.find(a => a.senderId === selectedUser)?.senderName || 'User'}
                     </strong></span>
+                  ) : recipientFilter !== 'ALL' ? (
+                    <span>For: <strong className="text-purple-600 dark:text-purple-400">{recipientFilter}</strong></span>
                   ) : (
                     <span>Showing all articles</span>
                   )}
@@ -202,6 +226,12 @@ export default function ArticlesPage() {
                     <p className="text-sm text-gray-600 dark:text-gray-400">Filtered</p>
                     <p className="text-2xl font-bold text-green-600 dark:text-green-400">{filteredArticles.length}</p>
                   </div>
+                  {recipientCount > 0 && (
+                    <div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Recipients</p>
+                      <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{recipientCount}</p>
+                    </div>
+                  )}
                 </div>
                 <label className="flex items-center space-x-2 cursor-pointer">
                   <input
@@ -216,7 +246,7 @@ export default function ArticlesPage() {
             </div>
 
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <input
                   type="text"
                   placeholder="Search articles, headlines, content..."
@@ -244,6 +274,19 @@ export default function ArticlesPage() {
                   <option value="ALL">All Types</option>
                   {contentTypes.map(type => (
                     <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={recipientFilter}
+                  onChange={(e) => setRecipientFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="ALL">All Recipients ({recipientCount})</option>
+                  {allRecipients.map(recipient => (
+                    <option key={recipient} value={recipient}>
+                      {recipient.length > 30 ? recipient.substring(0, 30) + '...' : recipient}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -287,22 +330,21 @@ export default function ArticlesPage() {
                               {contentTypeBadge.text}
                             </span>
                           </div>
-                          <time className="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                            {new Date(article.scrapedAt || article.timestamp).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </time>
+                          <div className="text-right">
+                            <div className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                              {getRelativeTime(article.scrapedAt || article.timestamp)}
+                            </div>
+                            <time className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                              {formatTimestamp(article.scrapedAt || article.timestamp)}
+                            </time>
+                          </div>
                         </div>
 
                         <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3 leading-tight">
                           {article.emailSubject || 'Untitled Article'}
                         </h2>
 
-                        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mb-4">
+                        <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400 mb-4 flex-wrap">
                           {article.senderName && (
                             <span className="flex items-center gap-1">
                               <span>👤</span>
@@ -327,6 +369,24 @@ export default function ArticlesPage() {
                             </a>
                           )}
                         </div>
+
+                        {article.emailTo && article.emailTo.length > 0 && (
+                          <div className="mb-4">
+                            <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">For:</div>
+                            <div className="flex flex-wrap gap-1">
+                              {article.emailTo.slice(0, 5).map((email, i) => (
+                                <span key={i} className="text-xs px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+                                  {email}
+                                </span>
+                              ))}
+                              {article.emailTo.length > 5 && (
+                                <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded">
+                                  +{article.emailTo.length - 5} more
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
 
                         {article.emailBody && (
                           <div className="prose dark:prose-invert prose-sm max-w-none">
@@ -361,16 +421,18 @@ export default function ArticlesPage() {
 
                       <div className="bg-gray-50 dark:bg-gray-900/50 px-6 py-3 border-t border-gray-100 dark:border-gray-700">
                         <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                          <span>Article ID: {article.id.substring(0, 8)}...</span>
-                          {article.scraperStatus && (
-                            <span className={`px-2 py-0.5 rounded ${
-                              article.scraperStatus === 'success' 
-                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                            }`}>
-                              {article.scraperStatus}
-                            </span>
-                          )}
+                          <span>ID: {article.id.substring(0, 8)}...</span>
+                          <div className="flex items-center gap-2">
+                            {article.scraperStatus && (
+                              <span className={`px-2 py-0.5 rounded ${
+                                article.scraperStatus === 'success' 
+                                  ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                  : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                              }`}>
+                                {article.scraperStatus}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </article>
@@ -378,50 +440,9 @@ export default function ArticlesPage() {
                 })}
               </div>
             )}
-
-            <div className="mt-8 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg p-6 border border-blue-100 dark:border-blue-800">
-              <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-200 mb-3 flex items-center gap-2">
-                <span>💡</span>
-                <span>How to Add Articles</span>
-              </h3>
-              <div className="space-y-3">
-                <p className="text-sm text-blue-800 dark:text-blue-300">
-                  Send scraped news content with user identification:
-                </p>
-                <pre className="block bg-blue-100 dark:bg-blue-900/40 p-4 rounded-lg text-xs overflow-x-auto">{
-`curl -X POST http://localhost:3000/api/log \
-  -H "Content-Type: application/json" \
-  -d '{
-  "source": "NYT Cooking",
-  "contentType": "newsletter",
-  "articleUrl": "https://cooking.nytimes.com/...",
-  "scraperStatus": "success",
-  "emailSubject": "5 Quick Pasta Recipes",
-  "emailBody": "Your article content here...",
-  "emailFrom": "cooking@nytimes.com",
-  "senderName": "Joonas Virtanen",
-  "senderId": "user-123",
-  "sessionId": "session-abc",
-  "deviceInfo": "Chrome/MacOS"
-}'`
-                }</pre>
-              </div>
-            </div>
           </div>
         </div>
       </div>
     </main>
   )
-
-  function getInitials(name?: string): string {
-    if (!name) return '?'
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2)
-  }
-
-  function getUserColor(id?: string): string {
-    if (!id) return 'bg-gray-500'
-    const colors = ['bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-pink-500']
-    const hash = id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
-    return colors[hash % colors.length]
-  }
 }

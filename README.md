@@ -1,13 +1,14 @@
-# Request & Email Logger with Scraper Monitoring
+# Request & Email Logger with News Reader
 
-A Next.js-based request logging system with specialized interfaces for debugging API requests, email data, and monitoring news content scraping activity.
+A Next.js-based request logging system with specialized interfaces for debugging API requests, email data, monitoring news scraping activity, and reading scraped articles.
 
 ## Features
 
 - 📝 **API Endpoint**: `/api/log` - Accepts and stores request data
 - 📨 **Email Support**: Log and view email data with dedicated UI
-- 📰 **Scraper Monitor**: Specialized interface for tracking news outlet scraping
-- 🔍 **Debug UI**: Root page (`/`) - View, filter, and search logged requests
+- 📰 **Articles Reader**: Beautiful interface for reading scraped news content
+- 🔧 **Scraper Monitor**: Technical monitoring for tracking scraping activity
+- 🔍 **Debug Console**: General-purpose request debugging
 - 💾 **In-Memory Storage**: Simple and fast (upgradeable to persistent storage)
 - 🎨 **Clean Interface**: Modern UI with Tailwind CSS and dark mode
 - 📊 **Request Details**: Captures method, headers, body, timestamp, and IP
@@ -28,8 +29,65 @@ npm run dev
 ```
 
 Open the following URLs:
-- [http://localhost:3000](http://localhost:3000) - Main debug console
-- [http://localhost:3000/scraper](http://localhost:3000/scraper) - Scraper monitoring dashboard
+- **[http://localhost:3000](http://localhost:3000)** - Debug Console (all requests)
+- **[http://localhost:3000/articles](http://localhost:3000/articles)** - Articles Reader (news content)
+- **[http://localhost:3000/scraper](http://localhost:3000/scraper)** - Scraper Monitor (technical metrics)
+
+## User Interfaces
+
+### 1. 📰 Articles Reader (`/articles`) - NEW!
+
+**Purpose**: Beautiful, magazine-style interface for reading scraped news content.
+
+**Features**:
+- Card-based article layout
+- Source badges with custom styling (NYT, Atlantic, etc.)
+- Prominent headlines and content previews
+- "Read more" / "Show less" functionality
+- Filter by news source or content type
+- Search across headlines and content
+- Auto-refresh every 5 seconds
+- Direct links to original articles
+- Content type indicators (Newsletter, Article, Digest, Alert)
+
+**Best for**:
+- Reading scraped newsletters and articles
+- Browsing news content from multiple sources
+- Consuming content in a clean, distraction-free interface
+
+### 2. 🔧 Scraper Monitor (`/scraper`)
+
+**Purpose**: Technical monitoring dashboard for scraping operations.
+
+**Features**:
+- Real-time scraping metrics (total, success, errors)
+- Recent ping activity tracking
+- Per-source statistics and breakdowns
+- Scraper status indicators
+- Technical request details
+- Auto-refresh every 3 seconds
+
+**Best for**:
+- Monitoring scraper health
+- Debugging failed scrapes
+- Tracking scraping frequency
+- Technical troubleshooting
+
+### 3. 🔍 Debug Console (`/`)
+
+**Purpose**: General-purpose debugging interface for all requests.
+
+**Features**:
+- View all logged requests (API, email, scraper)
+- Search and filter by type, method, email type
+- Detailed request inspector with headers and body
+- Real-time statistics
+- Auto-refresh capability
+
+**Best for**:
+- General API debugging
+- Inspecting raw request data
+- Testing webhooks and integrations
 
 ## API Documentation
 
@@ -37,51 +95,19 @@ Open the following URLs:
 
 Logs any incoming request with full details. Automatically detects request type (API, email, or scraper).
 
-#### Regular API Request
-
-```bash
-curl -X POST http://localhost:3000/api/log \
-  -H "Content-Type: application/json" \
-  -d '{"test": "data", "message": "Hello World"}'
-```
-
-**Response**:
-```json
-{
-  "success": true,
-  "id": "unique-request-id",
-  "timestamp": "2026-02-07T21:15:00.000Z",
-  "isEmail": false,
-  "isScraper": false
-}
-```
-
-#### Email Data Request
-
-```bash
-curl -X POST http://localhost:3000/api/log \
-  -H "Content-Type: application/json" \
-  -d '{
-    "emailSubject": "Project Update",
-    "emailBody": "Here is the latest update...",
-    "emailFrom": "alice@example.com",
-    "emailTo": ["bob@example.com"],
-    "emailType": "sent"
-  }'
-```
-
-#### Scraped News Content
+#### Example: Scraped Newsletter Content
 
 ```bash
 curl -X POST http://localhost:3000/api/log \
   -H "Content-Type: application/json" \
   -d '{
     "source": "NYT Cooking",
-    "scraperStatus": "success",
+    "contentType": "newsletter",
     "articleUrl": "https://cooking.nytimes.com/recipes/12345",
+    "scraperStatus": "success",
     "scrapedAt": "2026-02-07T21:00:00Z",
-    "emailSubject": "5 Weeknight Pasta Recipes",
-    "emailBody": "Discover quick and delicious pasta recipes for busy weeknights...",
+    "emailSubject": "5 Quick Weeknight Pasta Recipes",
+    "emailBody": "Discover delicious pasta recipes perfect for busy weeknights. From classic carbonara to creative vegetable pastas, these dishes come together in 30 minutes or less.\n\n1. Lemon Garlic Spaghetti\nA bright, zesty dish with...",
     "emailFrom": "cooking@nytimes.com"
   }'
 ```
@@ -90,26 +116,56 @@ curl -X POST http://localhost:3000/api/log \
 ```json
 {
   "success": true,
-  "id": "unique-request-id",
+  "id": "1707342000000-abc123",
   "timestamp": "2026-02-07T21:15:00.000Z",
   "isEmail": true,
   "isScraper": true
 }
 ```
 
-#### App Health Ping
+#### Example: Article Content
 
 ```bash
 curl -X POST http://localhost:3000/api/log \
   -H "Content-Type: application/json" \
-  -d '{"source": "App Health Check", "scraperStatus": "success"}'
+  -d '{
+    "source": "The Atlantic",
+    "contentType": "article",
+    "articleUrl": "https://theatlantic.com/technology/...",
+    "scraperStatus": "success",
+    "emailSubject": "The Future of AI in Education",
+    "emailBody": "Full article content here...",
+    "emailFrom": "newsletter@theatlantic.com"
+  }'
+```
+
+#### Example: Daily Digest
+
+```bash
+curl -X POST http://localhost:3000/api/log \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": "Washington Post",
+    "contentType": "digest",
+    "scraperStatus": "success",
+    "emailSubject": "Morning Brief: Top Stories",
+    "emailBody": "Here are today's top stories:\n\n1. Story headline...\n2. Another story..."
+  }'
+```
+
+#### Regular API Request (still supported)
+
+```bash
+curl -X POST http://localhost:3000/api/log \
+  -H "Content-Type: application/json" \
+  -d '{"test": "data", "message": "Hello World"}'
 ```
 
 ### Field Reference
 
 #### Email Fields
-- **emailSubject** (string, optional): Email subject line
-- **emailBody** (string, optional): Full email content/message
+- **emailSubject** (string, optional): Email subject line / article headline
+- **emailBody** (string, optional): Full email content / article text
 - **emailFrom** (string, optional): Sender email address
 - **emailTo** (string[], optional): Array of recipient email addresses
 - **emailType** (string, optional): Type of email - `"received"`, `"sent"`, or `"draft"`
@@ -119,6 +175,7 @@ curl -X POST http://localhost:3000/api/log \
 - **scraperStatus** (string, optional): Scraping status - `"success"`, `"error"`, or `"pending"`
 - **articleUrl** (string, optional): Source URL of the scraped content
 - **scrapedAt** (string, optional): ISO 8601 timestamp of when content was scraped
+- **contentType** (string, optional): Type of content - `"newsletter"`, `"article"`, `"digest"`, or `"alert"` (NEW!)
 
 ### GET /api/log
 
@@ -132,17 +189,21 @@ Retrieves logged requests with optional filtering.
 - `isScraper` (optional): Filter scraper vs non-scraper (`true` or `false`)
 - `source` (optional): Filter by news source name
 - `status` (optional): Filter by scraper status (success, error, pending)
+- `contentType` (optional): Filter by content type (newsletter, article, digest, alert) (NEW!)
 
 **Examples**:
 ```bash
-# Get all scraper data
-curl http://localhost:3000/api/log?isScraper=true
+# Get all articles and newsletters
+curl http://localhost:3000/api/log?isScraper=true&isEmail=true
 
-# Get successful scrapes from NYT Cooking
-curl "http://localhost:3000/api/log?source=NYT%20Cooking&status=success"
+# Get only newsletters from NYT Cooking
+curl "http://localhost:3000/api/log?source=NYT%20Cooking&contentType=newsletter"
 
-# Get all emails
-curl http://localhost:3000/api/log?isEmail=true
+# Get all digest-type content
+curl http://localhost:3000/api/log?contentType=digest
+
+# Get successful article scrapes
+curl "http://localhost:3000/api/log?contentType=article&status=success"
 ```
 
 **Response**:
@@ -161,77 +222,52 @@ Clears all logged requests.
 curl -X DELETE http://localhost:3000/api/log
 ```
 
-## User Interfaces
-
-### 1. Debug Console (`/`)
-
-General-purpose debugging interface for all requests:
-- View all logged requests (API, email, scraper)
-- Search and filter by type, method, email type
-- Detailed request inspector
-- Real-time statistics
-- Auto-refresh capability
-
-### 2. Scraper Monitor (`/scraper`)
-
-Specialized interface for monitoring news scraping:
-- **Real-time Dashboard**: Active scraping metrics
-  - Total scrapes count
-  - Success vs error rates
-  - Recent ping activity (last 60 seconds)
-- **Source Metrics**: Per-outlet statistics
-  - Total scrapes by source
-  - Success/error breakdown
-  - Visual source indicators
-- **Content Display**: Optimized for news articles
-  - Email-style content preview
-  - Source URL links
-  - Clean article body rendering
-- **Filtering**: By source, status, or search terms
-- **Auto-refresh**: Updates every 3 seconds
-
 ## Supported News Sources
 
-The scraper interface includes special icons for:
-- 🗓️ **NYT/New York Times** (including NYT Cooking)
-- 🌊 **The Atlantic**
-- 📬 **Washington Post**
-- 🛡️ **The Guardian**
-- 🍳 **Cooking newsletters**
-- 📰 **Generic news sources**
+The interfaces include special styling for popular sources:
+- 🗓️ **NYT/New York Times** (purple badge, including NYT Cooking)
+- 🌊 **The Atlantic** (blue badge)
+- 📬 **Washington Post** (indigo badge)
+- 🛡️ **The Guardian** (cyan badge)
+- 🍳 **Cooking newsletters** (orange badge)
+- 📰 **Generic news sources** (green badge)
 
 Any custom source name is supported - the system adapts automatically.
 
+## Content Types
+
+Categorize your scraped content:
+- **newsletter**: Email newsletters from news outlets
+- **article**: Individual articles or stories
+- **digest**: Daily/weekly roundups or summary emails
+- **alert**: Breaking news or urgent updates
+
 ## Use Cases
 
-### API Development
+### News Aggregation & Reading
+- Aggregate newsletters from multiple sources
+- Read scraped articles in a clean interface
+- Search across all your news content
+- Track which sources you're following
+- Archive interesting articles
+
+### Content Monitoring
+- Monitor scraper health and success rates
+- Track scraping frequency by source
+- Debug failed scrape attempts
+- View raw scraped data
+
+### API Development & Testing
 - Debug webhook payloads
 - Monitor API requests during development
 - Test request/response flows
-
-### Email Testing & Monitoring
-- Log outgoing emails during development
-- Debug email content and formatting
-- Monitor email delivery attempts
-- Test email workflows
-
-### News Content Scraping
-- Monitor scraper health and activity
-- Track scraping success rates by source
-- Debug failed scrape attempts
-- View scraped newsletter/article content
-- Monitor app ping activity
-
-### Integration Testing
-- Capture and inspect integration data
-- Verify data transformation
-- Debug data flows between systems
+- Inspect email delivery
 
 ## Tech Stack
 
 - **Framework**: Next.js 14 (App Router)
 - **Language**: TypeScript
-- **Styling**: Tailwind CSS
+- **Styling**: Tailwind CSS with custom design system
 - **Storage**: In-memory (up to 200 requests)
 
 ## Architecture
@@ -239,9 +275,17 @@ Any custom source name is supported - the system adapts automatically.
 ```
 /api/log              → Single endpoint for all logging
 /                     → Debug console (all requests)
-/scraper              → Scraper monitor (scraper data only)
+/articles             → Articles reader (news content only)
+/scraper              → Scraper monitor (technical metrics)
 /app/components       → Shared components (Navigation)
 ```
+
+## Navigation
+
+All interfaces include a navigation bar for easy switching:
+- **🔍 Debug Console**: View all requests and raw data
+- **📰 Articles**: Read news content in a magazine-style layout
+- **🔧 Monitor**: Technical scraping metrics and monitoring
 
 ## Backward Compatibility
 
@@ -260,46 +304,54 @@ The system is fully backward compatible:
 - Data cleared on server restart (by design)
 - Can be upgraded to persistent storage (database)
 
+## Development Tips
+
+### Testing the Articles Interface
+
+1. Start the dev server: `npm run dev`
+2. Navigate to http://localhost:3000/articles
+3. Send test article data using the examples above
+4. Watch content appear in real-time with auto-refresh
+
+### Simulating Multiple Sources and Content Types
+
+```bash
+# NYT Cooking Newsletter
+curl -X POST http://localhost:3000/api/log -H "Content-Type: application/json" \
+  -d '{"source": "NYT Cooking", "contentType": "newsletter", "scraperStatus": "success", "emailSubject": "Weekend Baking Projects", "emailBody": "Try these delicious recipes this weekend..."}'
+
+# Atlantic Article
+curl -X POST http://localhost:3000/api/log -H "Content-Type: application/json" \
+  -d '{"source": "The Atlantic", "contentType": "article", "scraperStatus": "success", "emailSubject": "The Rise of Remote Work", "emailBody": "An in-depth look at how remote work is changing society...", "articleUrl": "https://theatlantic.com/..."}'
+
+# Washington Post Digest
+curl -X POST http://localhost:3000/api/log -H "Content-Type: application/json" \
+  -d '{"source": "Washington Post", "contentType": "digest", "scraperStatus": "success", "emailSubject": "The Daily Brief", "emailBody": "Today's top stories:\n\n1. Politics update\n2. Tech news\n3. World events"}'
+
+# Breaking News Alert
+curl -X POST http://localhost:3000/api/log -H "Content-Type: application/json" \
+  -d '{"source": "The Guardian", "contentType": "alert", "scraperStatus": "success", "emailSubject": "BREAKING: Major Event", "emailBody": "Breaking news alert content..."}'
+```
+
 ## Future Enhancements
 
 - [ ] Persistent database storage (PostgreSQL, MongoDB)
-- [ ] Export functionality (JSON, CSV, EML)
+- [ ] Export functionality (JSON, CSV, EML, PDF)
+- [ ] Article bookmarking and favorites
+- [ ] Tags and categories for organization
+- [ ] Full-text search with highlighting
 - [ ] Email attachment support
 - [ ] HTML email rendering
 - [ ] Webhook forwarding for scraper alerts
 - [ ] Request replay functionality
 - [ ] Real-time updates with WebSockets
 - [ ] Authentication and access control
-- [ ] Scraping schedule visualization
-- [ ] Error rate alerting
-- [ ] Historical metrics and trends
-- [ ] Content comparison tools
+- [ ] Article sharing and collaboration
+- [ ] Reading progress tracking
 - [ ] RSS feed generation from scraped content
-
-## Development Tips
-
-### Testing Scraper Integration
-
-1. Start the dev server: `npm run dev`
-2. Navigate to http://localhost:3000/scraper
-3. Send test scraper data using the examples above
-4. Watch real-time updates in the dashboard
-
-### Simulating Multiple Sources
-
-```bash
-# NYT Cooking
-curl -X POST http://localhost:3000/api/log -H "Content-Type: application/json" \
-  -d '{"source": "NYT Cooking", "scraperStatus": "success", "emailSubject": "Recipe of the Day"}'
-
-# The Atlantic
-curl -X POST http://localhost:3000/api/log -H "Content-Type: application/json" \
-  -d '{"source": "The Atlantic", "scraperStatus": "success", "emailSubject": "Today's Newsletter"}'
-
-# Simulate error
-curl -X POST http://localhost:3000/api/log -H "Content-Type: application/json" \
-  -d '{"source": "The Guardian", "scraperStatus": "error", "emailSubject": "Failed Scrape"}'
-```
+- [ ] Content comparison tools
+- [ ] Historical metrics and trends
+- [ ] AI-powered article summaries
 
 ## License
 

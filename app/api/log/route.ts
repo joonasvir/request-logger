@@ -26,7 +26,7 @@ interface SenderData {
 interface RecipientData {
   recipientName?: string // Display name of the recipient
   recipientId?: string // Unique identifier for the recipient
-  recipientEmail?: string // Recipient's email address
+  recipientEmail?: string // Email address of the recipient
 }
 
 interface LoggedRequest {
@@ -282,7 +282,7 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  // Filter by recipient email (exact match)
+  // Filter by recipient email
   if (recipientEmailFilter) {
     filtered = filtered.filter(req => req.recipientEmail === recipientEmailFilter)
   }

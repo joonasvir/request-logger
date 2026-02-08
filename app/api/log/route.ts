@@ -13,6 +13,7 @@ interface ScraperData {
   scraperStatus?: 'success' | 'error' | 'pending' | string
   articleUrl?: string // Source URL
   scrapedAt?: string // Scraping timestamp
+  contentType?: 'newsletter' | 'article' | 'digest' | 'alert' | string // Type of content
 }
 
 interface LoggedRequest {
@@ -35,6 +36,7 @@ interface LoggedRequest {
   scraperStatus?: string
   articleUrl?: string
   scrapedAt?: string
+  contentType?: string
   isScraper?: boolean // Flag to identify scraper requests
 }
 
@@ -82,7 +84,8 @@ function isScraperRequest(body: any): boolean {
     body.source !== undefined ||
     body.scraperStatus !== undefined ||
     body.articleUrl !== undefined ||
-    body.scrapedAt !== undefined
+    body.scrapedAt !== undefined ||
+    body.contentType !== undefined
   )
 }
 
@@ -121,6 +124,7 @@ export async function POST(request: NextRequest) {
       loggedRequest.scraperStatus = body.scraperStatus || 'success'
       loggedRequest.articleUrl = body.articleUrl
       loggedRequest.scrapedAt = body.scrapedAt || new Date().toISOString()
+      loggedRequest.contentType = body.contentType || 'article'
       
       // Also extract email fields if it's a scraped email
       if (isEmail) {
@@ -163,6 +167,7 @@ export async function GET(request: NextRequest) {
   const isScraperFilter = searchParams.get('isScraper')
   const sourceFilter = searchParams.get('source')
   const statusFilter = searchParams.get('status')
+  const contentTypeFilter = searchParams.get('contentType')
 
   let filtered = [...requestLog]
 
@@ -196,6 +201,11 @@ export async function GET(request: NextRequest) {
   // Filter by scraper status
   if (statusFilter) {
     filtered = filtered.filter(req => req.scraperStatus === statusFilter)
+  }
+
+  // Filter by content type
+  if (contentTypeFilter) {
+    filtered = filtered.filter(req => req.contentType === contentTypeFilter)
   }
 
   // Filter by search query

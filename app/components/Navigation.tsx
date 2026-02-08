@@ -21,6 +21,16 @@ export default function Navigation() {
             🔍 Debug Console
           </Link>
           <Link
+            href="/articles"
+            className={`px-4 py-2 rounded-lg transition-colors ${
+              pathname === '/articles'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+          >
+            📰 Articles
+          </Link>
+          <Link
             href="/scraper"
             className={`px-4 py-2 rounded-lg transition-colors ${
               pathname === '/scraper'
@@ -28,7 +38,7 @@ export default function Navigation() {
                 : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
             }`}
           >
-            📰 Scraper Monitor
+            🔧 Monitor
           </Link>
         </div>
         <div className="text-sm text-gray-600 dark:text-gray-400">

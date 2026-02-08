@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Navigation from '../components/Navigation'
 import UserStats from '../components/UserStats'
+import { getRelativeTime, formatTimestamp } from '../utils/timeUtils'
 
 interface LoggedRequest {
   id: string
@@ -33,10 +34,17 @@ export default function ScraperMonitor() {
   const [searchTerm, setSearchTerm] = useState('')
   const [sourceFilter, setSourceFilter] = useState('ALL')
   const [statusFilter, setStatusFilter] = useState('ALL')
+  const [recipientFilter, setRecipientFilter] = useState('ALL')
   const [selectedUser, setSelectedUser] = useState('ALL')
   const [selectedRequest, setSelectedRequest] = useState<LoggedRequest | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(true)
   const [showUserStats, setShowUserStats] = useState(false)
+  const [currentTime, setCurrentTime] = useState(Date.now())
+
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(Date.now()), 10000)
+    return () => clearInterval(interval)
+  }, [])
 
   const fetchRequests = async () => {
     try {
@@ -63,6 +71,14 @@ export default function ScraperMonitor() {
     }
   }, [autoRefresh, selectedUser])
 
+  const allRecipients = useMemo(() => {
+    const recipients = new Set<string>()
+    requests.forEach(req => {
+      req.emailTo?.forEach(email => recipients.add(email))
+    })
+    return Array.from(recipients).sort()
+  }, [requests])
+
   useEffect(() => {
     let filtered = requests
 
@@ -74,6 +90,10 @@ export default function ScraperMonitor() {
       filtered = filtered.filter(req => req.scraperStatus === statusFilter)
     }
 
+    if (recipientFilter !== 'ALL') {
+      filtered = filtered.filter(req => req.emailTo?.includes(recipientFilter))
+    }
+
     if (searchTerm) {
       filtered = filtered.filter(req => {
         const searchLower = searchTerm.toLowerCase()
@@ -82,13 +102,14 @@ export default function ScraperMonitor() {
           req.emailSubject?.toLowerCase().includes(searchLower) ||
           req.emailBody?.toLowerCase().includes(searchLower) ||
           req.articleUrl?.toLowerCase().includes(searchLower) ||
-          req.senderName?.toLowerCase().includes(searchLower)
+          req.senderName?.toLowerCase().includes(searchLower) ||
+          req.emailTo?.some(email => email.toLowerCase().includes(searchLower))
         )
       })
     }
 
     setFilteredRequests(filtered)
-  }, [requests, searchTerm, sourceFilter, statusFilter])
+  }, [requests, searchTerm, sourceFilter, statusFilter, recipientFilter])
 
   const clearRequests = async () => {
     if (confirm('Clear all scraper logs?')) {
@@ -150,6 +171,7 @@ export default function ScraperMonitor() {
   }))
 
   const hasUserData = requests.some(r => r.senderId || r.senderName)
+  const recipientCount = allRecipients.length
 
   return (
     <main className=\"min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 dark:from-gray-900 dark:to-indigo-900 p-6\">
@@ -253,17 +275,9 @@ export default function ScraperMonitor() {
             <div className=\"bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6\">
               <div className=\"flex items-center justify-between mb-4\">
                 <h3 className=\"text-lg font-semibold text-gray-900 dark:text-white\">Filters</h3>
-                {hasUserData && (
-                  <button
-                    onClick={() => setShowUserStats(!showUserStats)}
-                    className=\"px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50\"
-                  >
-                    {showUserStats ? 'Hide' : 'Show'} Users
-                  </button>
-                )}
-              </div>
+                <div className=\"flex items-center gap-2\">\n                  {recipientCount > 0 && (\n                    <span className=\"text-sm text-gray-600 dark:text-gray-400\">\n                      {recipientCount} recipients\n                    </span>\n                  )}\n                  {hasUserData && (\n                    <button\n                      onClick={() => setShowUserStats(!showUserStats)}\n                      className=\"px-3 py-1 text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50\"\n                    >\n                      {showUserStats ? 'Hide' : 'Show'} Users\n                    </button>\n                  )}\n                </div>\n              </div>
 
-              <div className=\"grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4\">
+              <div className=\"grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4\">
                 <input
                   type=\"text\"
                   placeholder=\"Search scrapes...\"
@@ -294,6 +308,17 @@ export default function ScraperMonitor() {
                   <option value=\"pending\">Pending</option>
                 </select>
 
+                <select
+                  value={recipientFilter}
+                  onChange={(e) => setRecipientFilter(e.target.value)}
+                  className=\"px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white\"
+                >
+                  <option value=\"ALL\">All Recipients</option>
+                  {allRecipients.map(recipient => (
+                    <option key={recipient} value={recipient}>\n                      {recipient.length > 25 ? recipient.substring(0, 25) + '...' : recipient}\n                    </option>
+                  ))}
+                </select>
+
                 <label className=\"flex items-center space-x-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700\">
                   <input
                     type=\"checkbox\"
@@ -301,7 +326,7 @@ export default function ScraperMonitor() {
                     onChange={(e) => setAutoRefresh(e.target.checked)}
                     className=\"w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500\"
                   />
-                  <span className=\"text-gray-700 dark:text-gray-300\">Auto (3s)</span>
+                  <span className=\"text-gray-700 dark:text-gray-300 text-sm\">Auto</span>
                 </label>
               </div>
 
@@ -348,9 +373,7 @@ export default function ScraperMonitor() {
                             <span className=\"text-2xl\">{getSourceIcon(req.source)}</span>
                             <div>
                               <div className=\"font-semibold text-gray-900 dark:text-white\">{req.source || 'Unknown Source'}</div>
-                              <div className=\"text-xs text-gray-500 dark:text-gray-400\">
-                                {new Date(req.scrapedAt || req.timestamp).toLocaleString()}
-                              </div>
+                              <div className=\"text-xs text-gray-500 dark:text-gray-400\">\n                                {getRelativeTime(req.scrapedAt || req.timestamp)} \u2022 {formatTimestamp(req.scrapedAt || req.timestamp)}\n                              </div>
                             </div>
                           </div>
                           <span className={`badge text-xs ${getStatusBadgeClass(req.scraperStatus)}`}>
@@ -372,15 +395,13 @@ export default function ScraperMonitor() {
                           </div>
                         )}
 
-                        {req.articleUrl && (
-                          <div className=\"text-xs text-blue-600 dark:text-blue-400 truncate mb-2\">
-                            🔗 {req.articleUrl}
-                          </div>
+                        {req.emailTo && req.emailTo.length > 0 && (
+                          <div className=\"mb-2\">\n                            <div className=\"flex flex-wrap gap-1\">\n                              {req.emailTo.slice(0, 2).map((email, i) => (\n                                <span key={i} className=\"text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded\">\n                                  {email}\n                                </span>\n                              ))}\n                              {req.emailTo.length > 2 && (\n                                <span className=\"text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded\">\n                                  +{req.emailTo.length - 2}\n                                </span>\n                              )}\n                            </div>\n                          </div>
                         )}
 
-                        {req.emailBody && (
-                          <div className=\"text-xs text-gray-600 dark:text-gray-400 line-clamp-2\">
-                            {req.emailBody.substring(0, 150)}{req.emailBody.length > 150 ? '...' : ''}
+                        {req.articleUrl && (
+                          <div className=\"text-xs text-blue-600 dark:text-blue-400 truncate\">
+                            🔗 {req.articleUrl}
                           </div>
                         )}
                       </div>
@@ -408,59 +429,11 @@ export default function ScraperMonitor() {
                             <h3 className=\"text-xl font-bold text-gray-900 dark:text-white\">
                               {selectedRequest.source || 'Unknown Source'}
                             </h3>
-                            <p className=\"text-sm text-gray-600 dark:text-gray-400\">
-                              {new Date(selectedRequest.scrapedAt || selectedRequest.timestamp).toLocaleString()}
-                            </p>
-                            {selectedRequest.senderName && (
-                              <p className=\"text-xs text-gray-500 dark:text-gray-500\">
-                                Scraped by: {selectedRequest.senderName}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <span className={`badge ${getStatusBadgeClass(selectedRequest.scraperStatus)}`}>
-                          {selectedRequest.scraperStatus?.toUpperCase() || 'UNKNOWN'}
-                        </span>
-                      </div>
-
-                      {selectedRequest.articleUrl && (
-                        <div>
-                          <h4 className=\"text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2\">Article URL</h4>
-                          <a
-                            href={selectedRequest.articleUrl}
-                            target=\"_blank\"
-                            rel=\"noopener noreferrer\"
-                            className=\"text-sm text-blue-600 dark:text-blue-400 hover:underline break-all\"
-                          >
-                            {selectedRequest.articleUrl}
-                          </a>
-                        </div>
-                      )}
-
-                      {selectedRequest.emailSubject && (
-                        <div>
-                          <h4 className=\"text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2\">Subject</h4>
-                          <p className=\"text-lg font-medium text-gray-900 dark:text-white\">
-                            {selectedRequest.emailSubject}
-                          </p>
-                        </div>
-                      )}
-
-                      {selectedRequest.emailBody && (
-                        <div>
-                          <h4 className=\"text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2\">Content</h4>
-                          <div className=\"bg-gray-50 dark:bg-gray-900 rounded-lg p-4 max-h-96 overflow-y-auto\">
+                            <div className=\"text-sm font-medium text-blue-600 dark:text-blue-400\">\n                              {getRelativeTime(selectedRequest.scrapedAt || selectedRequest.timestamp)}\n                            </div>\n                            <p className=\"text-xs text-gray-500 dark:text-gray-500\">\n                              {formatTimestamp(selectedRequest.scrapedAt || selectedRequest.timestamp)}\n                            </p>\n                            {selectedRequest.senderName && (\n                              <p className=\"text-xs text-gray-500 dark:text-gray-500 mt-1\">\n                                Scraped by: {selectedRequest.senderName}\n                              </p>\n                            )}\n                          </div>\n                        </div>\n                        <span className={`badge ${getStatusBadgeClass(selectedRequest.scraperStatus)}`}>\n                          {selectedRequest.scraperStatus?.toUpperCase() || 'UNKNOWN'}\n                        </span>\n                      </div>\n\n                      {selectedRequest.emailTo && selectedRequest.emailTo.length > 0 && (\n                        <div>\n                          <h4 className=\"text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2\">\n                            Recipients ({selectedRequest.emailTo.length})\n                          </h4>\n                          <div className=\"flex flex-wrap gap-2\">\n                            {selectedRequest.emailTo.map((email, i) => (\n                              <span key={i} className=\"text-sm px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-full\">\n                                {email}\n                              </span>\n                            ))}\n                          </div>\n                        </div>\n                      )}\n\n                      {selectedRequest.articleUrl && (\n                        <div>\n                          <h4 className=\"text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2\">Article URL</h4>\n                          <a\n                            href={selectedRequest.articleUrl}\n                            target=\"_blank\"\n                            rel=\"noopener noreferrer\"\n                            className=\"text-sm text-blue-600 dark:text-blue-400 hover:underline break-all\"\n                          >\n                            {selectedRequest.articleUrl}\n                          </a>\n                        </div>\n                      )}\n\n                      {selectedRequest.emailSubject && (\n                        <div>\n                          <h4 className=\"text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2\">Subject</h4>\n                          <p className=\"text-lg font-medium text-gray-900 dark:text-white\">\n                            {selectedRequest.emailSubject}\n                          </p>\n                        </div>\n                      )}\n\n                      {selectedRequest.emailBody && (\n                        <div>\n                          <h4 className=\"text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2\">Content</h4>\n                          <div className=\"bg-gray-50 dark:bg-gray-900 rounded-lg p-4 max-h-96 overflow-y-auto\">
                             <div className=\"whitespace-pre-wrap text-sm text-gray-900 dark:text-gray-100\">
                               {selectedRequest.emailBody}
                             </div>
                           </div>
-                        </div>
-                      )}
-
-                      {selectedRequest.deviceInfo && (
-                        <div>
-                          <h4 className=\"text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2\">Device Info</h4>
-                          <p className=\"text-sm text-gray-900 dark:text-white\">{selectedRequest.deviceInfo}</p>
                         </div>
                       )}
 
@@ -473,9 +446,11 @@ export default function ScraperMonitor() {
                           <div><strong>Timestamp:</strong> {selectedRequest.timestamp}</div>
                           <div><strong>Scraped At:</strong> {selectedRequest.scrapedAt || 'N/A'}</div>
                           <div><strong>IP:</strong> {selectedRequest.ip}</div>
-                          <div><strong>Method:</strong> {selectedRequest.method}</div>
                           {selectedRequest.sessionId && (
                             <div><strong>Session ID:</strong> {selectedRequest.sessionId}</div>
+                          )}
+                          {selectedRequest.deviceInfo && (
+                            <div><strong>Device:</strong> {selectedRequest.deviceInfo}</div>
                           )}
                         </div>
                       </details>
@@ -486,32 +461,6 @@ export default function ScraperMonitor() {
                     <p className=\"text-gray-500 dark:text-gray-400\">Select a scrape to view details</p>
                   </div>
                 )}
-              </div>
-            </div>
-
-            <div className=\"mt-8 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-6\">
-              <h3 className=\"text-lg font-semibold text-indigo-900 dark:text-indigo-200 mb-3\">
-                📚 How to Send Scraper Data
-              </h3>
-              <div className=\"space-y-3\">
-                <div>
-                  <p className=\"text-sm font-semibold text-indigo-800 dark:text-indigo-300 mb-2\">With user identification:</p>
-                  <pre className=\"block bg-indigo-100 dark:bg-indigo-900/40 p-3 rounded text-xs overflow-x-auto\">{
-`curl -X POST http://localhost:3000/api/log \\
-  -H \"Content-Type: application/json\" \\
-  -d '{
-  \"source\": \"NYT Cooking\",
-  \"scraperStatus\": \"success\",
-  \"articleUrl\": \"https://cooking.nytimes.com/recipes/12345\",
-  \"emailSubject\": \"5 Weeknight Pasta Recipes\",
-  \"emailBody\": \"Discover quick and delicious pasta recipes...\",
-  \"senderName\": \"Joonas Virtanen\",
-  \"senderId\": \"user-123\",
-  \"sessionId\": \"session-abc\",
-  \"deviceInfo\": \"Chrome/MacOS\"
-}'`
-                  }</pre>
-                </div>
               </div>
             </div>
           </div>

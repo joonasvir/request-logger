@@ -23,6 +23,12 @@ interface SenderData {
   deviceInfo?: string // Device information (browser, OS, etc.)
 }
 
+interface RecipientData {
+  recipientName?: string // Display name of the recipient
+  recipientId?: string // Unique identifier for the recipient
+  recipientEmail?: string // Recipient's email address
+}
+
 interface LoggedRequest {
   id: string
   method: string
@@ -50,6 +56,10 @@ interface LoggedRequest {
   senderId?: string
   sessionId?: string
   deviceInfo?: string
+  // Recipient identification fields
+  recipientName?: string
+  recipientId?: string
+  recipientEmail?: string
 }
 
 // In-memory storage (will be reset on server restart)
@@ -153,11 +163,16 @@ export async function POST(request: NextRequest) {
       if (body.senderId) loggedRequest.senderId = body.senderId
       if (body.sessionId) loggedRequest.sessionId = body.sessionId
       if (body.deviceInfo) loggedRequest.deviceInfo = body.deviceInfo
+      
+      // Extract recipient identification fields
+      if (body.recipientName) loggedRequest.recipientName = body.recipientName
+      if (body.recipientId) loggedRequest.recipientId = body.recipientId
+      if (body.recipientEmail) loggedRequest.recipientEmail = body.recipientEmail
     }
 
     requestLog.unshift(loggedRequest) // Add to beginning
     
-    // Keep only last 300 requests to prevent memory issues (increased for sender data)
+    // Keep only last 300 requests to prevent memory issues
     if (requestLog.length > 300) {
       requestLog.length = 300
     }
@@ -188,10 +203,14 @@ export async function GET(request: NextRequest) {
   const sourceFilter = searchParams.get('source')
   const statusFilter = searchParams.get('status')
   const contentTypeFilter = searchParams.get('contentType')
-  // New sender filters
+  // Sender filters
   const senderIdFilter = searchParams.get('senderId')
   const sessionIdFilter = searchParams.get('sessionId')
   const senderNameFilter = searchParams.get('senderName')
+  // Recipient filters
+  const recipientIdFilter = searchParams.get('recipientId')
+  const recipientNameFilter = searchParams.get('recipientName')
+  const recipientEmailFilter = searchParams.get('recipientEmail')
 
   let filtered = [...requestLog]
 
@@ -248,6 +267,24 @@ export async function GET(request: NextRequest) {
     filtered = filtered.filter(req => 
       req.senderName?.toLowerCase().includes(nameLower)
     )
+  }
+
+  // Filter by recipient ID
+  if (recipientIdFilter) {
+    filtered = filtered.filter(req => req.recipientId === recipientIdFilter)
+  }
+
+  // Filter by recipient name (partial match)
+  if (recipientNameFilter) {
+    const nameLower = recipientNameFilter.toLowerCase()
+    filtered = filtered.filter(req => 
+      req.recipientName?.toLowerCase().includes(nameLower)
+    )
+  }
+
+  // Filter by recipient email (exact match)
+  if (recipientEmailFilter) {
+    filtered = filtered.filter(req => req.recipientEmail === recipientEmailFilter)
   }
 
   // Filter by search query
